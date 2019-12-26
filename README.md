@@ -1,5 +1,5 @@
 # suicapydc
-A discord bot that packed with music playback and some other features. Written in Python.
+A discord bot that packed with music playback and some other features. Written in Python. Named after Ibuki Suika from the Touhou Project series.
 <br>
 Most of the respond that will be sent by the bot is hardcoded and is in Traditional Chinese.
 <p>
@@ -8,4 +8,4 @@ Most of the respond that will be sent by the bot is hardcoded and is in Traditio
 
 --More documentation coming soon--
 <br>
-igouP
+igouP.
