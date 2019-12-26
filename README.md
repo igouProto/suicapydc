@@ -1,5 +1,7 @@
 # suicapydc
-A discord bot that packed with music playback and some other features. Written in Python. Named after Ibuki Suika from the Touhou Project series.
+A discord bot that packed with music playback and some other features. Written in Python. Specifically coded for hosting on Heroku.
+<br>
+Named after Ibuki Suika from the Touhou Project series.
 <br>
 Most of the respond that will be sent by the bot is hardcoded and is in Traditional Chinese.
 <p>
