@@ -3,4 +3,7 @@ A discord bot that packed with music playback and some other features. Written i
 <br>
 Most of the respond that will be sent by the bot is hardcoded and is in Traditional Chinese.
 <p>
+  Suica the bot is not yet ready for public installation yet.
+</p>
+
 --More documentation coming soon--
