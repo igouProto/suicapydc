@@ -25,6 +25,8 @@ bot.load_extension('messageHandler')
 bot.load_extension('musicPlayer')
 bot.load_extension('luckyDraws')
 #bot.load_extension('kancolle')  #currently not working, will fix it one day
+print('Trying to load opus...')
+discord.opus.load_opus()
 
 bot.remove_command('help') #I want my own help cmd.
 
