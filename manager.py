@@ -11,11 +11,12 @@ class manager(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
 		self.version = config.getVersion()
+		self.backstage = int(config.getBackstage())
 
 	@commands.Cog.listener()
 	async def on_ready(self):
 		print(strftime('Bot logged in at %Y/%m/%d, %H:%M:%S', localtime()))
-		channel = self.bot.get_channel(474118233130270721)
+		channel = self.bot.get_channel(self.backstage)
 		await channel.send(strftime('Bot logged in at %Y/%m/%d, %H:%M:%S', localtime()))
 		await self.bot.change_presence(activity = discord.Game(self.version))
 		if (discord.opus.is_loaded()):
