@@ -35,7 +35,7 @@ async def _hello(ctx):
 	await ctx.send(msg)
 
 @bot.command(name = "ping")  #ping function, used for testing the bot's respond time
-async def _ping(self, ctx):
+async def _ping(ctx):
 		t = await ctx.send('現在的反應時間是.........')
 		ms = (t.created_at - ctx.message.created_at).total_seconds() * 1000
 		await t.edit(content = '現在的反應時間是.........**{}**ms'.format(int(ms)))
