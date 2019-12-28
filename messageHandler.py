@@ -1,13 +1,14 @@
-#discord py modules
 import discord
 from discord.ext import commands
 import asyncio
+import config
 
 class messageHandler(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
 		self.keywords = []
 		self.response = {}
+		self.portal_id = int(config.getPortal())  #load the portal id from config
 		###read the keyword pairs from file###
 		with open('keywords.txt', 'r') as data:
 			for line in data:
@@ -28,8 +29,7 @@ class messageHandler(commands.Cog):
 				msg = self.response[message.content]
 				await message.channel.send(msg)
 		###portal talking function
-		if message.channel.id == (474980362263724032):  #the portal
-			print(self.messagedest)		
+		if message.channel.id == self.portal_id:
 			await self.bot.get_channel(self.messagedest).send(message.content)
 
 	@classmethod
