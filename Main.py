@@ -18,7 +18,7 @@ bot = commands.Bot(command_prefix = config.getPrefix())
 TOKEN = config.getToken()
 
 #TODO (igouP): Gather all the extensions and use one single statement to load all of them.
-#			   And fix the Kancolle functions.
+#And fix the Kancolle functions.
 bot.load_extension('manager')
 bot.load_extension('adminFunctions')
 bot.load_extension('messageHandler')
@@ -33,6 +33,12 @@ bot.remove_command('help') #I want my own help cmd.
 async def _hello(ctx):
 	msg = 'Hello {0.author.mention}'.format(ctx.message)
 	await ctx.send(msg)
+
+@bot.command(name = "ping")  #ping function, used for testing the bot's respond time
+async def _ping(self, ctx):
+		t = await ctx.send('現在的反應時間是.........')
+		ms = (t.created_at - ctx.message.created_at).total_seconds() * 1000
+		await t.edit(content = '現在的反應時間是.........**{}**ms'.format(int(ms)))
 
 @bot.command(name = "manual", aliases = ['man', 'help']) #print the manual out
 async def _manual(ctx):
