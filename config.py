@@ -36,3 +36,24 @@ def getVersion():
 		print("Version info loaded from os environment variable: {}".format(version))
 	return version
 
+def getBackstage():
+	try:
+		with open('config.json', 'r') as file:
+			configs = json.load(file)
+			backstage = configs["backstage_id"]
+			print("Backstage channel loaded from config.json: {}".format(backstage))
+	except IOError as e:
+		backstage = os.environ["BACKSTAGE"]
+		print("Version info loaded from os environment variable: {}".format(backstage))
+	return backstage
+
+def getPortal():
+	try:
+		with open('config.json', 'r') as file:
+			configs = json.load(file)
+			portal = configs["portal_id"]
+			print("Portal channel loaded from config.json: {}".format(portal))
+	except IOError as e:
+		portal = os.environ["PORTAL"]
+		print("Portal channel loaded from os environment variable: {}".format(portal))
+	return portal
