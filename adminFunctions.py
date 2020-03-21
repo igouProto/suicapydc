@@ -1,4 +1,3 @@
-#discord py modules
 import discord
 from discord.ext import commands
 import asyncio
@@ -99,12 +98,14 @@ class adminFunctions(commands.Cog):
 		self.bot.unload_extension('messageHandler')
 		self.bot.unload_extension('musicPlayer')
 		self.bot.unload_extension('luckyDraws')
+		self.bot.unload_extension('kancolle')
 		await ctx.send('重新載入所有插件...')
 		self.bot.load_extension('manager')
 		self.bot.load_extension('adminFunctions')
 		self.bot.load_extension('messageHandler')
 		self.bot.load_extension('musicPlayer')
 		self.bot.load_extension('luckyDraws')
+		self.bot.load_extension('kancolle')
 		await ctx.send('完成。')
 
 def setup(bot):

@@ -24,7 +24,7 @@ bot.load_extension('adminFunctions')
 bot.load_extension('messageHandler')
 bot.load_extension('musicPlayer')
 bot.load_extension('luckyDraws')
-#bot.load_extension('kancolle')  #currently not working, will fix it one day
+bot.load_extension('kancolle')
 
 bot.remove_command('help') #I want my own help cmd.
 
