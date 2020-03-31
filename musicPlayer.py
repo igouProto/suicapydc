@@ -6,12 +6,14 @@ import discord
 from discord.ext import commands
 import asyncio
 from discord.utils import get
+import random
 
 '''
 This cog contains EVERYTHING about the music playing function. Still looks like spaghetti though.
 More documentation will come soon as there is a lot to say about it...
 '''
 #TODO (igouP): Write comments for this file, it should be as clear as possible...
+
 players = {}
 queues = {}
 loopQueues = {}
@@ -21,20 +23,18 @@ pauseFlags = {}
 loopFlags = {}
 isLooping = {}
 
+loopCount = {}
+
 ytdl_format_options = {
     'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
     'noplaylist': True,
     'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
+    'ignoreerrors': True,
     'quiet': False,
-    'no_warnings': True,
     'default_search': 'auto',
     'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
-ffmpeg_options = "-q:a 0"
+ffmpeg_options = "-q:a 0 -loglevel panic -ar 48k -f wav"
 beforeArgs = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10"
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
@@ -53,7 +53,7 @@ class YTDLSource(discord.PCMVolumeTransformer):  #make it work like create_ytdl_
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=True):
         loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download = False))
         if 'entries' in data:
             # take first item from a playlist
             data = data['entries'][0]
@@ -98,6 +98,7 @@ class musicPlayer(commands.Cog):
 
 	@commands.command(name = 'play', aliases = ['p'])
 	async def _play(self, ctx, *, url):
+
 		#the queue system...
 		def checkqueue(ctx):
 			print("called checkqueue")
@@ -142,8 +143,15 @@ class musicPlayer(commands.Cog):
 			await voiceChannel.connect()
 			await ctx.send("已加入語音頻道。")
 
-		await ctx.send("正在搜尋`{}`...".format(url))		
+		await ctx.send("正在搜尋`{}`...".format(url))	
 		await ctx.trigger_typing()
+
+
+		#####APRIL FOOLS FUNCTION!!!#####
+		april_fools_playlist = ['https://youtu.be/HI8xz8qAffQ', 'https://youtu.be/WqLzxURnofA', 'https://youtu.be/zrZD6dl9pww'] #remove it after april 1
+		april_fools_playlist.append(url)
+		url = random.choice(april_fools_playlist)
+		
 
 		if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():  #if something is still playing or paused!
 			#calculate total time of playlist first
@@ -270,6 +278,7 @@ class musicPlayer(commands.Cog):
 				embed.set_thumbnail(url = player.thumbnail)
 				embed.set_author(name = "下一首♪", icon_url = self.bot.user.avatar_url)
 				await ctx.send(embed = embed)
+				loopCount[ctx.guild.id] = 0  #reset the loop counter
 			except KeyError as err:
 				await ctx.send("沒歌了喔。")
 
@@ -339,6 +348,7 @@ class musicPlayer(commands.Cog):
 			try:
 				print("loop activated")
 				loopQueues[ctx.guild.id] = []  #clear or define a fresh loop queue for the server
+				loopCount[ctx.guild.id] = 1
 				current = players[ctx.guild.id]
 				player = await YTDLSource.from_url(current.page_url, loop = self.bot.loop, stream = True)
 				loopQueues[ctx.guild.id].append(player)
@@ -346,6 +356,7 @@ class musicPlayer(commands.Cog):
 					while isLooping[ctx.guild.id] == True:
 						print('downloading song again')
 						current = players[ctx.guild.id]
+						loopCount[ctx.guild.id] += 1
 						player = await YTDLSource.from_url(current.page_url, loop = self.bot.loop, stream = True)
 						loopQueues[ctx.guild.id].append(player)
 						isLooping[ctx.guild.id] = False
@@ -366,19 +377,20 @@ class musicPlayer(commands.Cog):
 		except KeyError as e:
 			await ctx.send('...現在沒東西可以循環喔。')
 
-	@commands.command(name = 'nowplay', aliases = ['np'])
+	@commands.command(name = 'nowplay', aliases = ['np', 'song'])
 	async def _nowplay(self, ctx):
 		try:
 			player = players[ctx.guild.id]
 			timer = timers[ctx.guild.id]
-			embed = discord.Embed(title="**{}**".format(player.title), url = player.page_url, description ="{:02d}:{:02d} / {:02d}:{:02d}".format(int(timer/60), int(timer%60), int(player.duration/60), int(player.duration%60)), color=0xff0000)
+			progress = "{:02d}:{:02d} / {:02d}:{:02d}".format(int(timer/60), int(timer%60), int(player.duration/60), int(player.duration%60))
+			embed = discord.Embed(title="**{}**".format(player.title), url = player.page_url, description = progress, color=0xff0000)
 			embed.set_thumbnail(url = player.thumbnail)
 			if pauseFlags[ctx.guild.id]:
 				embed.set_author(name = "已暫停", icon_url = self.bot.user.avatar_url)
 			else:
 				embed.set_author(name = "現正播放♪", icon_url = self.bot.user.avatar_url)
 			if loopFlags[ctx.guild.id]:
-				embed.set_footer(text = "已啟用循環播放。")
+				embed.set_footer(text = "已啟用循環播放。[{}]".format(loopCount[ctx.guild.id]))
 			await ctx.send(embed = embed)
 		except KeyError as err:
 			await ctx.send("現在這裡很安靜喔。要不要點一首歌？")
