@@ -148,9 +148,12 @@ class musicPlayer(commands.Cog):
 
 
 		#####APRIL FOOLS FUNCTION!!!#####
+		playlist = []
 		april_fools_playlist = ['https://youtu.be/HI8xz8qAffQ', 'https://youtu.be/WqLzxURnofA', 'https://youtu.be/zrZD6dl9pww'] #remove it after april 1
-		april_fools_playlist.append(url)
-		url = random.choice(april_fools_playlist)
+		playlist.append(random.choice(april_fools_playlist))
+		playlist.append(url)
+		print(playlist)
+		url = random.choice(playlist)
 		
 
 		if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():  #if something is still playing or paused!
