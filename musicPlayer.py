@@ -146,16 +146,6 @@ class musicPlayer(commands.Cog):
 		await ctx.send("正在搜尋`{}`...".format(url))	
 		await ctx.trigger_typing()
 
-
-		#####APRIL FOOLS FUNCTION!!!#####
-		playlist = []
-		april_fools_playlist = ['https://youtu.be/HI8xz8qAffQ', 'https://youtu.be/WqLzxURnofA', 'https://youtu.be/zrZD6dl9pww'] #remove it after april 1
-		playlist.append(random.choice(april_fools_playlist))
-		playlist.append(url)
-		print(playlist)
-		url = random.choice(playlist)
-		
-
 		if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():  #if something is still playing or paused!
 			#calculate total time of playlist first
 			totalTime = 0
