@@ -8,6 +8,12 @@ import asyncio
 from discord.utils import get
 import random
 
+#os module
+import os
+
+#this is for the db function
+import sqlite3 
+
 '''
 This cog contains EVERYTHING about the music playing function. Still looks like spaghetti though.
 More documentation will come soon as there is a lot to say about it...
@@ -99,8 +105,8 @@ class musicPlayer(commands.Cog):
 	@commands.command(name = 'play', aliases = ['p'])
 	async def _play(self, ctx, *, url):
 
-		#the queue system...
-		def checkqueue(ctx):
+	#the queue system...
+		async def checkqueue(ctx):
 			print("called checkqueue")
 			players[ctx.guild.id].cleanup()
 			if loopFlags[ctx.guild.id] == True:  #loop mode
@@ -356,7 +362,6 @@ class musicPlayer(commands.Cog):
 					await asyncio.sleep(1)
 			except KeyError as err:
 				return
-
 		try:
 			if loopFlags[ctx.guild.id] == False:  #activate loop
 				loopFlags[ctx.guild.id] = True
@@ -387,6 +392,101 @@ class musicPlayer(commands.Cog):
 			await ctx.send(embed = embed)
 		except KeyError as err:
 			await ctx.send("現在這裡很安靜喔。要不要點一首歌？")
+
+	#this is cancelled for now cuz discord limits file size :(
+	@commands.command(name = 'download', aliases = ['dl'])
+	async def _download(self, ctx):
+		player = players[ctx.guild.id]
+		download_options = {
+			'outtmpl': '%(title)s.%(ext)s',
+			'format': 'bestaudio/best',
+			'postprocessors': [{
+			'key': 'FFmpegExtractAudio',
+				'preferredcodec': 'mp3',
+				'preferredquality': '192',
+			}],
+		}
+		print(player.page_url)
+		await ctx.send("正在下載**{}**....".format(player.title))
+		await ctx.trigger_typing()
+		with youtube_dl.YoutubeDL(download_options) as ydl:
+			ydl.download([player.page_url])
+		await ctx.send("下載完成，正在傳送檔案...")
+		await ctx.trigger_typing()
+		filename = "{}.mp3".format((player.title).replace("/", ("_")))
+		audio_file = discord.File(filename)
+		await ctx.send(file = audio_file)
+		os.remove(filename)
+	
+'''TO BE FINISHED
+	#but let's make another function base on it
+	@commands.command(name = 'save', aliases = ['s', 'sv'])
+	async def _save(self, ctx):
+		player = players[ctx.guild.id]
+		await ctx.send("正在連接資料庫...")
+		await ctx.trigger_typing()
+		db = sqlite3.connect("songlists.db")
+		cursor = db.cursor()
+		db_cmd = f"insert into '{ctx.guild.id}' (url, songname, length) values ('{player.page_url}', '{player.title}', '{player.duration}')"
+		print (db_cmd)
+		try:
+			#save song here
+			await ctx.send(f"正在儲存「**{player.title}**」至常用播放清單...")
+			cursor.execute(db_cmd)
+			db.commit()
+			await ctx.send("完成。")
+			cursor.close()
+			db.close()
+		except sqlite3.OperationalError: #just in case that it is the first time that this guild uses this function
+			await ctx.send("偵測到首次使用，正在建立表格...")
+			await ctx.trigger_typing()
+			cursor.execute(f"create table if not exists '{ctx.guild.id}' (url TEXT, songname TEXT, length INTEGER, PRIMARY KEY('url'))")
+			db.commit()
+			#save song here
+			cursor.execute(db_cmd)
+			db.commit()
+			await ctx.send("完成。")
+			cursor.close()
+			db.close()
+		except sqlite3.IntegrityError:
+			await ctx.send("存儲的曲目已存在。")
+		except KeyError as err:
+			await ctx.send("現在這裡很安靜喔。要不要點一首歌？")
+
+	@commands.command(name = 'unsave', aliases = ['us', 'usv'])
+	async def _unsave(self, ctx, *, name):
+		pass
+
+	@commands.command(name = 'library', aliases = ['lib', 'li'])
+	async def _library(self, ctx):
+		fullList = '' #this is for holding the list for the guild
+		await ctx.send("正在連接資料庫...")
+		await ctx.trigger_typing()
+		db = sqlite3.connect("songlists.db")
+		cursor = db.cursor()
+		db_cmd = f"select * from '{ctx.guild.id}'"
+		try:
+			query = cursor.execute(db_cmd)
+			result = query.fetchall()
+			if len(result) > 0:
+				index = 1
+				for item in result:
+					fullList += "`{:02d}.`[{}]({})".format(index, item[1], item[0])
+					fullList += '\n'
+					index += 1
+			else:
+				fullList = "常用清單為空。"
+			embed = discord.Embed()
+			embed = embed.set_author(name = "{} 的常用清單～♪".format(self.bot.get_guild(ctx.guild.id).name), icon_url = self.bot.user.avatar_url)
+			embed.add_field(name="在藍字上按右鍵可以複製歌曲連結！", value = fullList, inline = False)
+			await ctx.send(embed = embed)
+		except sqlite3.OperationalError:
+			await ctx.send("偵測到首次使用，正在建立表格...")
+			await ctx.trigger_typing()
+			cursor.execute(f"create table if not exists '{ctx.guild.id}' (url TEXT, songname TEXT, length INTEGER, PRIMARY KEY('url'))")
+			db.commit()
+			await ctx.send("完成。")
+'''
 
 #homemade music position counter, yay
 async def timer(ctx): 

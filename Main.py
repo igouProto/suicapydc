@@ -25,6 +25,7 @@ bot.load_extension('messageHandler')
 bot.load_extension('musicPlayer')
 bot.load_extension('luckyDraws')
 bot.load_extension('kancolle')
+bot.load_extension('holoScheduleV1')
 
 bot.remove_command('help') #I want my own help cmd.
 
@@ -46,6 +47,7 @@ async def _manual(ctx):
 	msg = manual.read()
 	await ctx.send(msg)
 	manual.close()
+
 
 ###RUN THE BOT!!!###
 bot.run(TOKEN)
