@@ -1,5 +1,5 @@
 #ytdl module
-import youtube_dl
+import youtube_dlc #FAQ RIAA, there's an alternative and active fork, yay.
 
 #discord py modules
 import discord
@@ -43,7 +43,7 @@ ytdl_format_options = {
 ffmpeg_options = "-q:a 0 -loglevel panic -ar 48k -f wav"
 beforeArgs = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10"
 
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+ytdl = youtube_dlc.YoutubeDL(ytdl_format_options)
 
 class YTDLSource(discord.PCMVolumeTransformer):  #make it work like create_ytdl_player in the old version
     def __init__(self, source, *, data, volume=1.0):
