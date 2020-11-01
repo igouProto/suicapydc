@@ -1,4 +1,7 @@
 #ytdl module
+import datetime
+import traceback
+
 import youtube_dlc #FAQ RIAA, there's an alternative and active fork, yay.
 
 #discord py modules
@@ -74,7 +77,7 @@ class musicPlayer(commands.Cog):
 	@commands.command(name = 'summon', aliases = ['join'])
 	async def _summon(self, ctx):
 		if ctx.author.voice is None:
-			await ctx.send("你要先加入語音頻道，才能叫我過去喔。")
+			await ctx.send(":warning: 你要先加入語音頻道，才能叫我過去喔。")
 			return
 		else:
 			try:
@@ -88,7 +91,7 @@ class musicPlayer(commands.Cog):
 	async def _disconnect(self, ctx):
 		voiceClient = ctx.voice_client
 		if voiceClient is None:
-			await ctx.send("未加入語音頻道，無法解除連接...你懂的。")
+			await ctx.send(":x: 未加入語音頻道，無法解除連接。很怪對吧。")
 			return
 		await voiceClient.disconnect()
 		await ctx.send("已解除連接。")
@@ -149,7 +152,7 @@ class musicPlayer(commands.Cog):
 			await voiceChannel.connect()
 			await ctx.send("已加入語音頻道。")
 
-		await ctx.send("正在搜尋`{}`...".format(url))	
+		await ctx.send(":mag_right: 正在搜尋`{}`...".format(url))
 		await ctx.trigger_typing()
 
 		if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():  #if something is still playing or paused!
@@ -190,6 +193,16 @@ class musicPlayer(commands.Cog):
 			embed.set_author(name = "用閃亮的歌聲開始現場演唱♪", icon_url = self.bot.user.avatar_url)
 			await ctx.send(embed = embed)
 
+	@_play.error
+	async def play_error(self, ctx, error):
+		embed = discord.Embed(title=':x: 糟了個糕。', colour=0xff0000)
+		embed.description = "**{}**".format(error)
+		# embed.add_field(name = "好像很厲害但是也有可能不知所云的traceback：", value = '```py{}```'.format(traceback.format_exc()))
+		embed.timestamp = datetime.datetime.utcnow()
+		await ctx.send(embed = embed)
+		await ctx.send("操作已取消。")
+
+
 	@commands.command(name = 'queue', aliases = ['qu', 'q'])
 	async def _queue(self, ctx, page:int = 1):
 		await ctx.trigger_typing()
@@ -228,7 +241,7 @@ class musicPlayer(commands.Cog):
 				embed.set_footer(text = "[{}/{}]".format(page, len(slicedList)))
 			await ctx.send(embed = embed)
 		except KeyError as err:
-			await ctx.send("現在這裡很安靜喔。要不要點一首歌？")
+			await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
 
 	@commands.command(name = 'pause', aliases = ['pa'])
 	async def _pause(self, ctx):
@@ -237,11 +250,11 @@ class musicPlayer(commands.Cog):
 			return
 
 		if ctx.voice_client.is_paused():
-			await ctx.send("...？")
+			await ctx.send("已經暫停了。")
 		else:
 			ctx.voice_client.pause()
 			pauseFlags[ctx.guild.id] = True
-			await ctx.send("暫停！")
+			await ctx.send(":pause_button: 暫停！")
 
 	@commands.command(name = 'resume', aliases = ['re'])
 	async def _resume(self, ctx):
@@ -255,20 +268,20 @@ class musicPlayer(commands.Cog):
 			ctx.voice_client.resume()
 			pauseFlags[ctx.guild.id] = False
 			self.bot.loop.create_task(timer(ctx))
-			await ctx.send("繼續！")
+			await ctx.send(":arrow_forward: 繼續！")
 
 	@commands.command(name = 'skip', aliases = ['sk'])
 	async def _skip(self, ctx):
 		if ctx.voice_client is None:
-			await ctx.send("現在這裡很安靜喔。要不要點一首歌？")
+			await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
 			return
 		else:
 			if loopFlags[ctx.guild.id]:
 				loopFlags[ctx.guild.id] = False
 				loopQueues[ctx.guild.id] = []
 				print("loop deactivated due to skip")
-				await ctx.send("已自動停用單曲循環播放。")
-			await ctx.send("跳過！")
+				await ctx.send(":arrow_right: 已自動停用單曲循環播放。")
+			await ctx.send(":track_next: 跳過！")
 			ctx.voice_client.stop()
 			await asyncio.sleep(0.2)
 			try:
@@ -285,22 +298,22 @@ class musicPlayer(commands.Cog):
 	async def _shuffle(self, ctx):
 		try:
 			if len(queues[ctx.guild.id]) <= 1:
-				await ctx.send('播放清單已隨機排列...？')
+				await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列...？')
 			else:
 				random.shuffle(queues[ctx.guild.id])
-				await ctx.send('播放清單已隨機排列。')
+				await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列。')
 		except KeyError as err:
-			await ctx.send('...要不要先點幾首歌看看？')
+			await ctx.send(':warning: ...要不要先點幾首歌看看？')
 
 	@commands.command(name = "top", aliases = ['tp'])
 	async def _top(self, ctx, index:int = None):
 		try:
 			queue = queues[ctx.guild.id]
 			if index == None:
-				await ctx.send('請輸入要移動的曲目編號，輸入 **.queue** 以查看播放清單。')
+				await ctx.send(':warning: 請輸入要移動的曲目編號，輸入 **.queue** 以查看播放清單。')
 				return
 			elif index > len(queue):
-				await ctx.send('輸入的編號超出清單範圍。')
+				await ctx.send(':warning: 輸入的編號超出清單範圍。')
 				return
 			elif index <= 0:
 				await ctx.send('...別鬧了。')
@@ -316,23 +329,23 @@ class musicPlayer(commands.Cog):
 	async def _clear(self, ctx):
 		try:
 			if queues[ctx.guild.id] == []:
-				await ctx.send('已經很乾淨了。')
+				await ctx.send(':warning: 已經很乾淨了。')
 			else:
 				queues[ctx.guild.id] = []	
 				await ctx.send('已清空播放清單。')
 		except KeyError as keyerror:
-			await ctx.send('...已經很乾淨了。')
+			await ctx.send(':warning: ...已經很乾淨了。')
 
 	@commands.command(name = "remove", aliases = ['rm'])
 	async def _remove(self, ctx, index:int = None):
 		try:
 			if index == None:
-				await ctx.send('請輸入要移除的曲目編號。')
+				await ctx.send(':warning: 請輸入要移除的曲目編號。')
 			else:
 				if queues[ctx.guild.id] == []:
 					await ctx.send('已經很乾淨了。')
 				elif index > len(queues[ctx.guild.id]):
-					await ctx.send('曲目編號超出清單範圍。')
+					await ctx.send(':warning: 曲目編號超出清單範圍。')
 				else:
 					deletedTitle = queues[ctx.guild.id][index - 1].title
 					del queues[ctx.guild.id][index - 1]
@@ -365,15 +378,15 @@ class musicPlayer(commands.Cog):
 		try:
 			if loopFlags[ctx.guild.id] == False:  #activate loop
 				loopFlags[ctx.guild.id] = True
-				await ctx.send('單曲循環播放已啟用。')
+				await ctx.send(':repeat_one: 單曲循環播放已啟用。')
 				await self.bot.loop.create_task(singleLoop(ctx))  #trigger the loop function
 			elif loopFlags[ctx.guild.id] == True:  #deactivate loop
 				loopFlags[ctx.guild.id] = False
 				isLooping[ctx.guild.id] = False
 				loopQueues[ctx.guild.id] = []  #clear the loopQueue
-				await ctx.send('單曲循環播放已停用。')
+				await ctx.send(':arrow_right: 單曲循環播放已停用。')
 		except KeyError as e:
-			await ctx.send('...現在沒東西可以循環喔。')
+			await ctx.send(':warning: 現在沒東西可以循環喔。')
 
 	@commands.command(name = 'nowplay', aliases = ['np', 'song'])
 	async def _nowplay(self, ctx):
@@ -391,7 +404,7 @@ class musicPlayer(commands.Cog):
 				embed.set_footer(text = "已啟用循環播放。[{}]".format(loopCount[ctx.guild.id]))
 			await ctx.send(embed = embed)
 		except KeyError as err:
-			await ctx.send("現在這裡很安靜喔。要不要點一首歌？")
+			await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
 
 	#this is cancelled for now cuz discord limits file size :(
 	@commands.command(name = 'download', aliases = ['dl'])
@@ -407,9 +420,9 @@ class musicPlayer(commands.Cog):
 			}],
 		}
 		print(player.page_url)
-		await ctx.send("正在下載**{}**....".format(player.title))
+		await ctx.send(":arrow_down: 正在下載**{}**....".format(player.title))
 		await ctx.trigger_typing()
-		with youtube_dl.YoutubeDL(download_options) as ydl:
+		with youtube_dlc.YoutubeDL(download_options) as ydl:
 			ydl.download([player.page_url])
 		await ctx.send("下載完成，正在傳送檔案...")
 		await ctx.trigger_typing()
