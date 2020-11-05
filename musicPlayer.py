@@ -83,9 +83,9 @@ class musicPlayer(commands.Cog):
 			try:
 				voiceChannel = ctx.author.voice.channel
 				await voiceChannel.connect()
-				await ctx.send("已加入語音頻道。")
+				await ctx.send(":white_check_mark: 已加入語音頻道。")
 			except discord.errors.ClientException as err:
-				await ctx.send("我已經在語音頻道裡了喔？")
+				await ctx.send(":question: 我已經在語音頻道裡了喔？")
 
 	@commands.command(name = 'disconnect', aliases = ['dc'])
 	async def _disconnect(self, ctx):
@@ -94,7 +94,7 @@ class musicPlayer(commands.Cog):
 			await ctx.send(":x: 未加入語音頻道，無法解除連接。很怪對吧。")
 			return
 		await voiceClient.disconnect()
-		await ctx.send("已解除連接。")
+		await ctx.send(":arrow_left: 已解除連接。")
 		try:
 			del players[ctx.guild.id]
 			del queues[ctx.guild.id]
@@ -103,7 +103,7 @@ class musicPlayer(commands.Cog):
 			del loopFlags[ctx.guild.id]
 			print("cleanup finished")
 		except KeyError as err:
-			print("nothing to clear, left voice channel only")
+			print("nothing to clear, leaving voice channel only")
 
 	@commands.command(name = 'play', aliases = ['p'])
 	async def _play(self, ctx, *, url):
@@ -143,14 +143,14 @@ class musicPlayer(commands.Cog):
 
 		#check if the author is connected		
 		if ctx.author.voice is None:
-			await ctx.send("你要先加入語音頻道才能點歌喔。")
+			await ctx.send(":warning: 你要先加入語音頻道才能點歌喔。")
 			return
 		#automatic join voice channel if not connected		
 		if ctx.voice_client is None:
 			voiceChannel = ctx.author.voice.channel
 			await ctx.trigger_typing()
 			await voiceChannel.connect()
-			await ctx.send("已加入語音頻道。")
+			await ctx.send(":white_check_mark: 已加入語音頻道。")
 
 		await ctx.send(":mag_right: 正在搜尋`{}`...".format(url))
 		await ctx.trigger_typing()
@@ -200,7 +200,7 @@ class musicPlayer(commands.Cog):
 		# embed.add_field(name = "好像很厲害但是也有可能不知所云的traceback：", value = '```py{}```'.format(traceback.format_exc()))
 		embed.timestamp = datetime.datetime.utcnow()
 		await ctx.send(embed = embed)
-		await ctx.send("操作已取消。")
+		await ctx.send(":x: 操作已取消。")
 
 
 	@commands.command(name = 'queue', aliases = ['qu', 'q'])
@@ -219,7 +219,7 @@ class musicPlayer(commands.Cog):
 				listDuration += player.duration
 				index += 1
 			if len(queues[ctx.guild.id]) == 0:
-				upnext = '沒歌了喔。點一首吧？'  #give something if the queue is empty
+				upnext = '沒歌了喔。點一首吧？'  #stuff this line if the queue is empty
 			else:
 				slicedList = [fullList[i : i + 10] for i in range(0, len(fullList), 10)]
 				try:
@@ -237,7 +237,7 @@ class musicPlayer(commands.Cog):
 			embed=discord.Embed(title = "現正播放", description = "**{} ({:02d}:{:02d} / {:02d}:{:02d})**".format(player.title, int(timer/60), int(timer%60), int(player.duration/60), int(player.duration%60)), color=0xff0000)
 			embed.set_author(name = "{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name), icon_url = self.bot.user.avatar_url)
 			embed.add_field(name="接下來還有 **{}** 首歌♪ （總時長：**{:02d}:{:02d}**）".format(len(queues[ctx.guild.id]), int(listDuration/60), int(listDuration%60)), value = upnext, inline = False)
-			if len(slicedList) != 0:
+			if page != 0:
 				embed.set_footer(text = "[{}/{}]".format(page, len(slicedList)))
 			await ctx.send(embed = embed)
 		except KeyError as err:
@@ -292,7 +292,7 @@ class musicPlayer(commands.Cog):
 				await ctx.send(embed = embed)
 				loopCount[ctx.guild.id] = 0  #reset the loop counter
 			except KeyError as err:
-				await ctx.send("沒歌了喔。")
+				await ctx.send(":warning: 沒歌了喔。")
 
 	@commands.command(name = "shuffle", aliases = ['shuf', 'sh'])
 	async def _shuffle(self, ctx):
@@ -303,7 +303,7 @@ class musicPlayer(commands.Cog):
 				random.shuffle(queues[ctx.guild.id])
 				await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列。')
 		except KeyError as err:
-			await ctx.send(':warning: ...要不要先點幾首歌看看？')
+			await ctx.send(':x: 播放清單為空。')
 
 	@commands.command(name = "top", aliases = ['tp'])
 	async def _top(self, ctx, index:int = None):
@@ -316,25 +316,25 @@ class musicPlayer(commands.Cog):
 				await ctx.send(':warning: 輸入的編號超出清單範圍。')
 				return
 			elif index <= 0:
-				await ctx.send('...別鬧了。')
+				await ctx.send(':white_check_mark: 你高興就好。')
 			else:
 				queue.insert(0, queue.pop(index - 1))
-				await ctx.send('已將 **{}** 移至下一播放順位。'.format(queue[0].title))
+				await ctx.send(':white_check_mark: 已將 **{}** 移至下一播放順位。'.format(queue[0].title))
 				if (index - 1) == 0:
-					await ctx.send('...你高興就好。')
+					await ctx.send(':white_check_mark: 你高興就好。')
 		except KeyError as err:
-			await ctx.send('...要不要先點首歌看看？')
+			await ctx.send(':x: 播放清單為空。')
 
 	@commands.command(name = "clear", aliases = ['cl'])
 	async def _clear(self, ctx):
 		try:
 			if queues[ctx.guild.id] == []:
-				await ctx.send(':warning: 已經很乾淨了。')
+				await ctx.send(':white_check_mark: 已經很乾淨了。')
 			else:
 				queues[ctx.guild.id] = []	
-				await ctx.send('已清空播放清單。')
+				await ctx.send(':boom: 已清空播放清單。')
 		except KeyError as keyerror:
-			await ctx.send(':warning: ...已經很乾淨了。')
+			await ctx.send(':white_check_mark: 已經很乾淨了。')
 
 	@commands.command(name = "remove", aliases = ['rm'])
 	async def _remove(self, ctx, index:int = None):
@@ -343,15 +343,15 @@ class musicPlayer(commands.Cog):
 				await ctx.send(':warning: 請輸入要移除的曲目編號。')
 			else:
 				if queues[ctx.guild.id] == []:
-					await ctx.send('已經很乾淨了。')
+					await ctx.send(':white_check_mark: 已經很乾淨了。')
 				elif index > len(queues[ctx.guild.id]):
 					await ctx.send(':warning: 曲目編號超出清單範圍。')
 				else:
 					deletedTitle = queues[ctx.guild.id][index - 1].title
 					del queues[ctx.guild.id][index - 1]
-					await ctx.send('已從播放清單移除 `{}`。'.format(deletedTitle))
+					await ctx.send(':white_check_mark: 已從播放清單移除 `{}`。'.format(deletedTitle))
 		except KeyError as err:
-			ctx.send('...已經很乾淨了。')
+			ctx.send(':white_check_mark: 已經很乾淨了。是說根本還沒放歌吧？')
 
 	@commands.command(name = "loop", aliases = ['lp'])
 	async def _loop(self, ctx):
@@ -424,7 +424,7 @@ class musicPlayer(commands.Cog):
 		await ctx.trigger_typing()
 		with youtube_dlc.YoutubeDL(download_options) as ydl:
 			ydl.download([player.page_url])
-		await ctx.send("下載完成，正在傳送檔案...")
+		await ctx.send(":white_check_mark: 下載完成，正在傳送檔案...")
 		await ctx.trigger_typing()
 		filename = "{}.mp3".format((player.title).replace("/", ("_")))
 		audio_file = discord.File(filename)
