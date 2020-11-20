@@ -1,11 +1,9 @@
 import discord
 from discord.ext import commands
-import asyncio
-from discord.utils import get
-from discord.ext.commands import CommandNotFound
-
 import requests
 from bs4 import BeautifulSoup
+
+# TODO: This function is DEAD, I repeat, DEAD!!!
 
 class holoScheduleV1(commands.Cog):
 	def __init__(self, bot):
