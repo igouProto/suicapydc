@@ -1,5 +1,3 @@
-import datetime
-
 # ytdl module
 import youtube_dl  # IT'S BACK
 
@@ -12,14 +10,10 @@ import random
 # os module
 import os
 
-# this is for the to-be-developed db function
-# import sqlite3
-
 '''
 This cog contains EVERYTHING about the music playing function. Still looks like spaghetti though.
 More documentation will come soon as there is a lot to say about it... (Probably?)
 '''
-# TODO (igouP): Write comments for this file, it should be as clear as possible...
 
 players = {}
 queues = {}
@@ -34,15 +28,17 @@ loopCount = {}
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
+    'extract-audio': True,
+    'audio-format': 'mp3',
     'noplaylist': True,
     'nocheckcertificate': True,
     'ignoreerrors': True,
     'quiet': False,
     'default_search': 'auto',
 }
-ffmpeg_options = "-vn -loglevel panic -f wav -ar 48k -filter_complex 'loudnorm, arealtime'"  # some filters can help improve the radio-like quality, perhaps...
+ffmpeg_options = "-vn -loglevel panic -f s16le -filter_complex 'loudnorm'"  # some filters can help improve the radio-like quality, perhaps...
 # full doc of filters: https://ffmpeg.org/ffmpeg-filters.html
-beforeArgs = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10"
+beforeArgs = "-re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
@@ -66,7 +62,6 @@ class YTDLSource(discord.PCMVolumeTransformer):  # make it work like create_ytdl
             data = data['entries'][0]
         filename = data['url'] if stream else ytdl.prepare_filename(data)
         return cls(discord.FFmpegPCMAudio(filename, before_options=beforeArgs, options=ffmpeg_options), data=data)
-
 
 class musicPlayer(commands.Cog):
 
@@ -200,14 +195,18 @@ class musicPlayer(commands.Cog):
             embed.set_author(name="用閃亮的歌聲開始現場演唱♪", icon_url=self.bot.user.avatar_url)
             await ctx.send(embed=embed)
 
+            # and a tiny little easter egg ;)
+            if player.page_url in['https://www.youtube.com/watch?v=rB7XFQgJHBI', 'https://www.youtube.com/watch?v=SmKKG6tCP3M']: # if タイニーリトル・アジアンタム from Shibayan Records is played...
+                await ctx.send("https://tenor.com/8ZES.gif") # ...send this minecraft dancing parrot GIF :D
+                await ctx.send('嘿，你發現彩蛋了！') # hey you found the easter egg!
+
     @_play.error
     async def play_error(self, ctx, error):
         embed = discord.Embed(title=':x: 糟了個糕。', colour=0xff0000)
         embed.description = "**{}**".format(error)
         # embed.add_field(name = "好像很厲害但是也有可能不知所云的traceback：", value = '```py{}```'.format(traceback.format_exc()))
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.set_footer(text="操作已取消。")
         await ctx.send(embed=embed)
-        await ctx.send(":x: 操作已取消。")
 
     @commands.command(name='queue', aliases=['qu', 'q'])
     async def _queue(self, ctx, page: int = 1):
@@ -266,7 +265,7 @@ class musicPlayer(commands.Cog):
     @commands.command(name='pause', aliases=['pa'])
     async def _pause(self, ctx):
         if ctx.voice_client is None:
-            await ctx.send(":x: 未加入任何語音頻道")
+            await ctx.send(":x: 未加入任何語音頻道。")
             return
         if ctx.voice_client.is_paused():
             await ctx.send(":pause_button: 已經暫停了。")
@@ -278,11 +277,11 @@ class musicPlayer(commands.Cog):
     @commands.command(name='resume', aliases=['re'])
     async def _resume(self, ctx):
         if ctx.voice_client is None:
-            await ctx.send(":x: 未加入任何語音頻道")
+            await ctx.send(":x: 未加入任何語音頻道。")
             return
 
         if ctx.voice_client.is_playing():
-            await ctx.send(":arrow_forward: 正在播放")
+            await ctx.send(":arrow_forward: 播放中。")
         else:
             ctx.voice_client.resume()
             pauseFlags[ctx.guild.id] = False
@@ -416,7 +415,10 @@ class musicPlayer(commands.Cog):
         try:
             player = players[ctx.guild.id]
             timer = timers[ctx.guild.id]
-            progress = "{:02d}:{:02d} / {:02d}:{:02d}".format(int(timer / 60), int(timer % 60),
+            if player.duration <= 0: # handles livestreams
+                progress = "直播 • 已播放 {:02d}:{:02d}".format(int(timer / 60), int(timer % 60))
+            else:
+                progress = "{:02d}:{:02d} / {:02d}:{:02d}".format(int(timer / 60), int(timer % 60),
                                                               int(player.duration / 60), int(player.duration % 60))
             embed = discord.Embed(title="**{}**".format(player.title), url=player.page_url, description=progress,
                                   color=0xff0000)
@@ -431,10 +433,13 @@ class musicPlayer(commands.Cog):
         except KeyError as err:
             await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
 
-    # this is cancelled for now cuz discord limits file size :(
+    # discord limits file size :(
     @commands.command(name='download', aliases=['dl'])
     async def _download(self, ctx):
         player = players[ctx.guild.id]
+        if player.duration <= 0:
+            await ctx.send(':x: 無法下載直播中的影片。')
+            return
         download_options = {
             'outtmpl': '%(title)s.%(ext)s',
             'format': 'bestaudio/best',
@@ -455,77 +460,23 @@ class musicPlayer(commands.Cog):
         await ctx.send(file=audio_file)
         os.remove(filename)
 
-
-'''TO BE FINISHED
-	#but let's make another function base on it
-	@commands.command(name = 'save', aliases = ['s', 'sv'])
-	async def _save(self, ctx):
-		player = players[ctx.guild.id]
-		await ctx.send("正在連接資料庫...")
-		await ctx.trigger_typing()
-		db = sqlite3.connect("songlists.db")
-		cursor = db.cursor()
-		db_cmd = f"insert into '{ctx.guild.id}' (url, songname, length) values ('{player.page_url}', '{player.title}', '{player.duration}')"
-		print (db_cmd)
-		try:
-			#save song here
-			await ctx.send(f"正在儲存「**{player.title}**」至常用播放清單...")
-			cursor.execute(db_cmd)
-			db.commit()
-			await ctx.send("完成。")
-			cursor.close()
-			db.close()
-		except sqlite3.OperationalError: #just in case that it is the first time that this guild uses this function
-			await ctx.send("偵測到首次使用，正在建立表格...")
-			await ctx.trigger_typing()
-			cursor.execute(f"create table if not exists '{ctx.guild.id}' (url TEXT, songname TEXT, length INTEGER, PRIMARY KEY('url'))")
-			db.commit()
-			#save song here
-			cursor.execute(db_cmd)
-			db.commit()
-			await ctx.send("完成。")
-			cursor.close()
-			db.close()
-		except sqlite3.IntegrityError:
-			await ctx.send("存儲的曲目已存在。")
-		except KeyError as err:
-			await ctx.send("現在這裡很安靜喔。要不要點一首歌？")
-
-	@commands.command(name = 'unsave', aliases = ['us', 'usv'])
-	async def _unsave(self, ctx, *, name):
-		pass
-
-	@commands.command(name = 'library', aliases = ['lib', 'li'])
-	async def _library(self, ctx):
-		fullList = '' #this is for holding the list for the guild
-		await ctx.send("正在連接資料庫...")
-		await ctx.trigger_typing()
-		db = sqlite3.connect("songlists.db")
-		cursor = db.cursor()
-		db_cmd = f"select * from '{ctx.guild.id}'"
-		try:
-			query = cursor.execute(db_cmd)
-			result = query.fetchall()
-			if len(result) > 0:
-				index = 1
-				for item in result:
-					fullList += "`{:02d}.`[{}]({})".format(index, item[1], item[0])
-					fullList += '\n'
-					index += 1
-			else:
-				fullList = "常用清單為空。"
-			embed = discord.Embed()
-			embed = embed.set_author(name = "{} 的常用清單～♪".format(self.bot.get_guild(ctx.guild.id).name), icon_url = self.bot.user.avatar_url)
-			embed.add_field(name="在藍字上按右鍵可以複製歌曲連結！", value = fullList, inline = False)
-			await ctx.send(embed = embed)
-		except sqlite3.OperationalError:
-			await ctx.send("偵測到首次使用，正在建立表格...")
-			await ctx.trigger_typing()
-			cursor.execute(f"create table if not exists '{ctx.guild.id}' (url TEXT, songname TEXT, length INTEGER, PRIMARY KEY('url'))")
-			db.commit()
-			await ctx.send("完成。")
-'''
-
+    @commands.command(name='save', aliases=['sa', 's'])
+    async def _save(self, ctx): # saves the current song to your DM :) no need to fondle with databases yay.
+        try:
+            player = players[ctx.guild.id]
+            embed = discord.Embed(title="**{}**".format(player.title), url=player.page_url, color=0xff0000)
+            embed.set_author(name="早安啊，這是你剛剛存下來的曲子♪", icon_url=self.bot.user.avatar_url)
+            embed.set_thumbnail(url=player.thumbnail)
+            embed.add_field(name='上傳頻道', value=player.uploader)
+            embed.add_field(name='時長',
+                            value="{:02d}:{:02d}".format(int(player.duration / 60), int(player.duration % 60)),
+                            inline=True)
+            embed.add_field(name='網址', value=player.page_url, inline=False)
+            author = ctx.message.author
+            await author.send(embed=embed)
+            await ctx.send(":white_check_mark: 已將歌曲資訊傳送到私訊！")
+        except KeyError as error:
+            await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
 
 # homemade music position counter, yay
 async def timer(ctx):
@@ -535,7 +486,6 @@ async def timer(ctx):
             await asyncio.sleep(1)
     except AttributeError as err:
         return
-
 
 def setup(bot):
     bot.add_cog(musicPlayer(bot))

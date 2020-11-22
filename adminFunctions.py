@@ -1,12 +1,11 @@
 import discord
 from discord.ext import commands
 import asyncio
-from discord.utils import get
-from discord.ext.commands import CommandNotFound
 import json
 import os
 import sys
 
+import config
 
 # TODO (igouP):Add a function that allows others to add another announcement channel.Write more about this cog!
 class adminFunctions(commands.Cog):
@@ -21,7 +20,7 @@ class adminFunctions(commands.Cog):
         os.execl(sys.executable, sys.executable, *sys.argv)
 
     @commands.is_owner()
-    @commands.command(name="upannounce", aliases=['upd'])  # This is used for me to
+    @commands.command(name="upannounce", aliases=['upd'])  # This is for me to sent the update notes to the announcement channels
     async def _upannounce(self, ctx):
         await ctx.send("輸入公告內容或輸入cancel取消。")
         channel = ctx.message.channel
@@ -49,8 +48,7 @@ class adminFunctions(commands.Cog):
                         channels = json.load(file)
                         channel_list = channels["channels"]  # read all the channel id's written in the list
                         for each in channel_list:
-                            await self.bot.get_channel(each).send(
-                                announcement)  # and send the announcement to all the channels
+                            await self.bot.get_channel(each).send(announcement)  # and send the announcement to all the channels
                     file.close()
                     await ctx.send('已發出更新公告。')
             except IOError as e:
@@ -66,7 +64,11 @@ class adminFunctions(commands.Cog):
         name = self.bot.appinfo.name
         owner = self.bot.appinfo.owner.mention
         borntime = self.bot.userinfo.created_at
-        await ctx.send('ID:{}\n應用程式名稱：{}\n作者：{}\n建置時間：{}\n'.format(self.botid, name, owner, borntime))
+        embed = discord.Embed(title='**S**ugoi **U**ltra **I**ntelligent **C**hat **A**ssistant, SUICA', colour=0xff0000)
+        embed.set_author(name="關於西瓜(SUICA)", icon_url=self.bot.user.avatar_url)
+        embed.description = 'ID:{}\n應用程式名稱：{}\n作者：{}\n建置時間：{}\n'.format(self.botid, name, owner, borntime)
+        embed.set_footer(text=config.getVersion())
+        await ctx.send(embed=embed)
 
     @commands.is_owner()
     @commands.command(name="purge")  # delete messages
