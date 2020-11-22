@@ -1,14 +1,14 @@
 import discord
 from discord.ext import commands
 from datetime import datetime
-from time import gmtime, strftime, localtime
+from time import strftime, localtime
 #Kancolle recipe custom module
 import lscGen
 import rscGen
 '''
 This cog contains commands that generates recipes for Kantai collection"
 '''
-#TODO (igouP): THIS FUNCTION IS BROKEN :(
+
 class kancolle(commands.Cog):
 
 	def __init__(self, bot):
@@ -21,7 +21,7 @@ class kancolle(commands.Cog):
 		print (arg)
 		await ctx.trigger_typing()
 		if arg == None:
-			await ctx.send('指令 **.lsc**（大型艦建造玄學配方產生）使用方法：\n' + '```.lsc <艦種代號>\n\n艦種代號：\n-cv 航空母艦\n-bb 戰艦```')
+			await ctx.send('指令 **.lsc**（大型艦建造玄學配方產生）使用方法：\n' + '```.lsc <艦種代號>\n\n艦種代號：\ncv 航空母艦\nbb 戰艦```')
 			return
 		now = datetime.now()
 		today = now.year * 10000 + (now.month + 1) * 100 + now.day
@@ -42,7 +42,7 @@ class kancolle(commands.Cog):
 	async def _rsc(self, ctx, arg: str = None):
 		await ctx.trigger_typing()
 		if arg == None:
-			await ctx.send('指令 **.rsc**（通常建造玄學配方產生）使用方法：\n' + '```.rsc <艦種代號>\n\n艦種代號：\n-dd 驅逐艦\n-cl 輕巡洋艦\n-ca 重巡洋艦\n-cv 航空母艦\n-bb 戰艦\n-ss 潛水艇```')
+			await ctx.send('指令 **.rsc**（通常建造玄學配方產生）使用方法：\n' + '```.rsc <艦種代號>\n\n艦種代號：\ndd 驅逐艦\ncl 輕巡洋艦\nca 重巡洋艦\ncv 航空母艦\nbb 戰艦\nss 潛水艇```')
 			return
 		now = datetime.now()
 		today = now.year * 10000 + (now.month + 1) * 100 + now.day
@@ -62,7 +62,7 @@ class kancolle(commands.Cog):
 		elif arg.lower() == 'cv':
 			result = rscGen.cv(today, authorID)
 			embedDesc = '航空母艦'
-		elif arg.lower() == '-ss':
+		elif arg.lower() == 'ss':
 			result = rscGen.ss(today, authorID)
 			embedDesc = '潛水艇'
 		recipe = '**{}/{}/{}/{}**'.format(result[0][0], result[0][1], result[0][2], result[0][3])
