@@ -357,7 +357,7 @@ class musicPlayer(commands.Cog):
         except KeyError as err:
             await ctx.send(':x: 播放清單為空。')
 
-    @commands.command(name="jump", aliases=['jmp', 'j'])
+    @commands.command(name="jump", aliases=['jmp'])
     async def _jump(self, ctx, index: int = None):
         pass # finish it later
 
