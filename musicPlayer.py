@@ -14,6 +14,7 @@ import os
 This cog contains EVERYTHING about the music playing function. Still looks like spaghetti though.
 More documentation will come soon as there is a lot to say about it... (Probably?)
 '''
+# TODO: jump to track function (_jump())
 
 players = {}
 queues = {}
@@ -29,16 +30,17 @@ loopCount = {}
 ytdl_format_options = {
     'format': 'bestaudio/best',
     'extract-audio': True,
-    'audio-format': 'mp3',
+    'audio-format': 'opus',
     'noplaylist': True,
     'nocheckcertificate': True,
     'ignoreerrors': True,
     'quiet': False,
     'default_search': 'auto',
+    'source_address': '0.0.0.0',
 }
 ffmpeg_options = "-vn -loglevel panic -f s16le -filter_complex 'loudnorm'"  # some filters can help improve the radio-like quality, perhaps...
 # full doc of filters: https://ffmpeg.org/ffmpeg-filters.html
-beforeArgs = "-re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
+beforeArgs = "-nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
@@ -68,7 +70,7 @@ class musicPlayer(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name='summon', aliases=['join'])
+    @commands.command(name='summon', aliases=['join', 'j', 'J'])
     async def _summon(self, ctx):
         if ctx.author.voice is None:
             await ctx.send(":warning: 你要先加入語音頻道，才能叫我過去喔。")
@@ -81,7 +83,7 @@ class musicPlayer(commands.Cog):
             except discord.errors.ClientException as err:
                 await ctx.send(":question: 我已經在語音頻道裡了喔？")
 
-    @commands.command(name='disconnect', aliases=['dc'])
+    @commands.command(name='disconnect', aliases=['dc', 'd', 'D'])
     async def _disconnect(self, ctx):
         voiceClient = ctx.voice_client
         if voiceClient is None:
@@ -99,7 +101,7 @@ class musicPlayer(commands.Cog):
         except KeyError as err:
             print("nothing to clear, leaving voice channel only")
 
-    @commands.command(name='play', aliases=['p'])
+    @commands.command(name='play', aliases=['p', 'P'])
     async def _play(self, ctx, *, url):
 
         # the queue system...
@@ -154,8 +156,7 @@ class musicPlayer(commands.Cog):
             totalTime = 0
             for player in queues[ctx.guild.id]:
                 totalTime += player.duration
-            totalTime = totalTime + players[ctx.guild.id].duration - timers[
-                ctx.guild.id]  # and minus how much were played
+            totalTime = totalTime + players[ctx.guild.id].duration - timers[ctx.guild.id]  # and minus how much were played
             # add the player to the list
             player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
             if ctx.guild.id in queues:
@@ -167,12 +168,17 @@ class musicPlayer(commands.Cog):
             embed.set_thumbnail(url=player.thumbnail)
             embed.set_author(name="{} 剛剛把歌曲加入了播放清單～♪".format(ctx.author.display_name), icon_url=ctx.author.avatar_url)
             embed.add_field(name='上傳頻道', value=player.uploader)
+            duration = "{:02d}:{:02d}".format(int(player.duration / 60), int(player.duration % 60))
+            eta = "{:02d}:{:02d}".format(int(totalTime / 60), int(totalTime % 60))
+            if player.duration <= 0: # if the added song is also a livestream
+                duration = '直播' # mark the length as "livestream"
+            if players[ctx.guild.id].duration <= 0:  # if the current song is also a livestream
+                eta = '-' # mark the eta as "n/a"
             embed.add_field(name='時長',
-                            value="{:02d}:{:02d}".format(int(player.duration / 60), int(player.duration % 60)),
+                            value= duration,
                             inline=True)
             embed.add_field(name='播放順位', value=len(queues[ctx.guild.id]), inline=True)
-            embed.add_field(name='預估等待時間', value="{:02d}:{:02d}".format(int(totalTime / 60), int(totalTime % 60)),
-                            inline=True)
+            embed.add_field(name='預估等待時間', value=eta,inline=True)
             await ctx.send(embed=embed)
         else:  # fresh play
             print("Fresh play")
@@ -188,8 +194,12 @@ class musicPlayer(commands.Cog):
             # the info embed
             embed = discord.Embed(title="**{}**".format(player.title), url=player.page_url)
             embed.add_field(name='上傳頻道', value=player.uploader)
+            if player.duration <= 0:
+                duration = '直播' # mark the length as "livestream"
+            else:
+                duration = "{:02d}:{:02d}".format(int(player.duration / 60), int(player.duration % 60))
             embed.add_field(name='時長',
-                            value="{:02d}:{:02d}".format(int(player.duration / 60), int(player.duration % 60)),
+                            value=duration,
                             inline=True)
             embed.set_thumbnail(url=player.thumbnail)
             embed.set_author(name="用閃亮的歌聲開始現場演唱♪", icon_url=self.bot.user.avatar_url)
@@ -208,7 +218,7 @@ class musicPlayer(commands.Cog):
         embed.set_footer(text="操作已取消。")
         await ctx.send(embed=embed)
 
-    @commands.command(name='queue', aliases=['qu', 'q'])
+    @commands.command(name='queue', aliases=['qu', 'q', 'Q'])
     async def _queue(self, ctx, page: int = 1):
         await ctx.trigger_typing()
         try:
@@ -219,10 +229,11 @@ class musicPlayer(commands.Cog):
             upnext = ''
             if page <= 0:
                 page = 1
-            for player in queues[
-                ctx.guild.id]:  # list out all the upcoming songs in a single msg and calculate the duration
+            for player in queues[ctx.guild.id]:  # list out all the upcoming songs in a single msg and calculate the duration
                 fullList.append(
-                    "`{:02d}.` {} **({:02d}:{:02d})**".format(index, player.title, int(player.duration / 60),
+                    "`{:02d}.` {} **({:02d}:{:02d})**".format(index,
+                                                              player.title,
+                                                              int(player.duration / 60),
                                                               int(player.duration % 60)))
                 listDuration += player.duration
                 index += 1
@@ -247,8 +258,7 @@ class musicPlayer(commands.Cog):
                                                                                               int(timer / 60),
                                                                                               int(timer % 60),
                                                                                               int(player.duration / 60),
-                                                                                              int(
-                                                                                                  player.duration % 60)),
+                                                                                              int(player.duration % 60)),
                                   color=0xff0000)
             embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                              icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
@@ -262,39 +272,40 @@ class musicPlayer(commands.Cog):
         except KeyError as err:
             await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
 
-    @commands.command(name='pause', aliases=['pa'])
+    @commands.command(name='pause', aliases=['pa', 'PA'])
     async def _pause(self, ctx):
         if ctx.voice_client is None:
             await ctx.send(":x: 未加入任何語音頻道。")
             return
         if ctx.voice_client.is_paused():
             await ctx.send(":pause_button: 已經暫停了。")
+            return
         else:
             ctx.voice_client.pause()
             pauseFlags[ctx.guild.id] = True
             await ctx.send(":pause_button: 暫停！")
 
-    @commands.command(name='resume', aliases=['re'])
+    @commands.command(name='resume', aliases=['re', 'RE'])
     async def _resume(self, ctx):
         if ctx.voice_client is None:
             await ctx.send(":x: 未加入任何語音頻道。")
             return
-
         if ctx.voice_client.is_playing():
             await ctx.send(":arrow_forward: 播放中。")
+            return
         else:
             ctx.voice_client.resume()
             pauseFlags[ctx.guild.id] = False
             self.bot.loop.create_task(timer(ctx))
             await ctx.send(":arrow_forward: 繼續！")
 
-    @commands.command(name='skip', aliases=['sk'])
+    @commands.command(name='skip', aliases=['sk', 'SK'])
     async def _skip(self, ctx):
         if ctx.voice_client is None:
             await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
             return
         else:
-            if loopFlags[ctx.guild.id]:
+            if loopFlags[ctx.guild.id]: # if loop is enabled, disable it
                 loopFlags[ctx.guild.id] = False
                 loopQueues[ctx.guild.id] = []
                 print("loop deactivated due to skip")
@@ -304,9 +315,11 @@ class musicPlayer(commands.Cog):
             await asyncio.sleep(0.2)
             try:
                 player = players[ctx.guild.id]
+                duration = "{:02d}:{:02d}".format(int(player.duration / 60),int(player.duration % 60))
+                if player.duration <= 0:
+                    duration = '直播'
                 embed = discord.Embed(title="**{}**".format(player.title), url=player.page_url,
-                                      description="{:02d}:{:02d}".format(int(player.duration / 60),
-                                                                         int(player.duration % 60)), color=0xff0000)
+                                      description=duration, color=0xff0000)
                 embed.set_thumbnail(url=player.thumbnail)
                 embed.set_author(name="下一首♪", icon_url=self.bot.user.avatar_url)
                 await ctx.send(embed=embed)
@@ -314,18 +327,18 @@ class musicPlayer(commands.Cog):
             except KeyError as err:
                 await ctx.send(":warning: 沒歌了喔。")
 
-    @commands.command(name="shuffle", aliases=['shuf', 'sh'])
+    @commands.command(name="shuffle", aliases=['shuf', 'sh', 'SH'])
     async def _shuffle(self, ctx):
         try:
             if len(queues[ctx.guild.id]) <= 1:
-                await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列...？')
+                await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列？')
             else:
                 random.shuffle(queues[ctx.guild.id])
                 await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列。')
         except KeyError as err:
             await ctx.send(':x: 播放清單為空。')
 
-    @commands.command(name="top", aliases=['tp'])
+    @commands.command(name="top", aliases=['tp', 'TP'])
     async def _top(self, ctx, index: int = None):
         try:
             queue = queues[ctx.guild.id]
@@ -337,19 +350,23 @@ class musicPlayer(commands.Cog):
                 return
             elif index <= 0:
                 await ctx.send(':white_check_mark: 你高興就好。')
+                return
             else:
                 queue.insert(0, queue.pop(index - 1))
                 await ctx.send(':white_check_mark: 已將 **{}** 移至下一播放順位。'.format(queue[0].title))
-                if (index - 1) == 0:
-                    await ctx.send(':white_check_mark: 你高興就好。')
         except KeyError as err:
             await ctx.send(':x: 播放清單為空。')
 
-    @commands.command(name="clear", aliases=['cl'])
+    @commands.command(name="jump", aliases=['jmp', 'j'])
+    async def _jump(self, ctx, index: int = None):
+        pass # finish it later
+
+    @commands.command(name="clear", aliases=['cl', 'c', 'C'])
     async def _clear(self, ctx):
         try:
             if queues[ctx.guild.id] == []:
                 await ctx.send(':white_check_mark: 已經很乾淨了。')
+                return
             else:
                 queues[ctx.guild.id] = []
                 await ctx.send(':boom: 已清空播放清單。')
@@ -361,11 +378,14 @@ class musicPlayer(commands.Cog):
         try:
             if index == None:
                 await ctx.send(':warning: 請輸入要移除的曲目編號。')
+                return
             else:
                 if queues[ctx.guild.id] == []:
                     await ctx.send(':white_check_mark: 已經很乾淨了。')
+                    return
                 elif index > len(queues[ctx.guild.id]):
                     await ctx.send(':warning: 曲目編號超出清單範圍。')
+                    return
                 else:
                     deletedTitle = queues[ctx.guild.id][index - 1].title
                     del queues[ctx.guild.id][index - 1]
@@ -373,7 +393,7 @@ class musicPlayer(commands.Cog):
         except KeyError as err:
             ctx.send(':white_check_mark: 已經很乾淨了。是說根本還沒放歌吧？')
 
-    @commands.command(name="loop", aliases=['lp'])
+    @commands.command(name="loop", aliases=['lp', 'l', 'L'])
     async def _loop(self, ctx):
         # the loop system
         async def singleLoop(ctx):
@@ -400,8 +420,8 @@ class musicPlayer(commands.Cog):
         try:
             if loopFlags[ctx.guild.id] == False:  # activate loop
                 loopFlags[ctx.guild.id] = True
-                await ctx.send(':repeat_one: 單曲循環播放已啟用。')
                 await self.bot.loop.create_task(singleLoop(ctx))  # trigger the loop function
+                await ctx.send(':repeat_one: 單曲循環播放已啟用。')
             elif loopFlags[ctx.guild.id] == True:  # deactivate loop
                 loopFlags[ctx.guild.id] = False
                 isLooping[ctx.guild.id] = False
@@ -416,7 +436,7 @@ class musicPlayer(commands.Cog):
             player = players[ctx.guild.id]
             timer = timers[ctx.guild.id]
             if player.duration <= 0: # handles livestreams
-                progress = "直播 • 已播放 {:02d}:{:02d}".format(int(timer / 60), int(timer % 60))
+                progress = "直播 • 已連接 {:02d}:{:02d}".format(int(timer / 60), int(timer % 60))
             else:
                 progress = "{:02d}:{:02d} / {:02d}:{:02d}".format(int(timer / 60), int(timer % 60),
                                                               int(player.duration / 60), int(player.duration % 60))
@@ -440,13 +460,16 @@ class musicPlayer(commands.Cog):
         if player.duration <= 0:
             await ctx.send(':x: 無法下載直播中的影片。')
             return
+        elif player.duration >= 340: # if the duration is over 340 sec then it may exceed the file size limit if the bit rate is 192kbps (8MB = 65536Kb)
+            await ctx.send(':x: 檔案大小超出限制(8MB)。') # tell the user the file size is too large anyway lol
+            return
         download_options = {
             'outtmpl': '%(title)s.%(ext)s',
             'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
-                'preferredquality': '320',
+                'preferredquality': '192',
             }],
         }
         await ctx.send(":arrow_down: 正在下載**{}**....".format(player.title))

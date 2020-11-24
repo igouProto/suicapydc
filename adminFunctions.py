@@ -7,7 +7,9 @@ import sys
 
 import config
 
-# TODO (igouP):Add a function that allows others to add another announcement channel.Write more about this cog!
+# TODO (igouP):Add a function that allows others to add another announcement channel.
+# This cog is for all the administration related functions, including some actions that requires higher level of permissions, like restarting the bot
+# ping and manual are also moved here.
 class adminFunctions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -54,24 +56,8 @@ class adminFunctions(commands.Cog):
             except IOError as e:
                 ctx.send("無法讀取公告頻道清單。")
 
-    @commands.command(name="about")
-    async def _about(self, ctx):
-        await ctx.trigger_typing()
-        # retrive the discord app information
-        self.bot.appinfo = await self.bot.application_info()
-        self.botid = self.bot.appinfo.id
-        self.bot.userinfo = await self.bot.fetch_user(self.botid)
-        name = self.bot.appinfo.name
-        owner = self.bot.appinfo.owner.mention
-        borntime = self.bot.userinfo.created_at
-        embed = discord.Embed(title='**S**ugoi **U**ltra **I**ntelligent **C**hat **A**ssistant, SUICA', colour=0xff0000)
-        embed.set_author(name="關於西瓜(SUICA)", icon_url=self.bot.user.avatar_url)
-        embed.description = 'ID:{}\n應用程式名稱：{}\n作者：{}\n建置時間：{}\n'.format(self.botid, name, owner, borntime)
-        embed.set_footer(text=config.getVersion())
-        await ctx.send(embed=embed)
-
     @commands.is_owner()
-    @commands.command(name="purge")  # delete messages
+    @commands.command(name="purge")  # batch-deletes messages
     async def _purge(self, ctx, amount: int):
         await ctx.message.channel.purge(limit=amount)
         cmd = ctx.message
@@ -80,26 +66,24 @@ class adminFunctions(commands.Cog):
         await msg.delete()
 
     @commands.is_owner()
-    @commands.command(name="port")  # change 'portal' destination, the 'portal' is defined in messageHandler.py
+    @commands.command(name="port")  # changes 'portal' destination, the 'portal' is defined in messageHandler.py
     async def _port(self, ctx, dest: int):
         message_handler = self.bot.get_cog('messageHandler')
         message_handler.set_destination(dest)
         destination = message_handler.get_destination()
         await ctx.send('傳聲筒目的地已設為**{}** - {}'.format(self.bot.get_channel(destination).name, self.bot.get_channel(destination).guild.name))
 
-    ###RELOAD ALL EXTENSTIONS###
     # TODO: Arrange a extension list and reload them through ONE statement!
     @commands.is_owner()
-    @commands.command(name='reload', aliases=['rl'])
+    @commands.command(name='reload', aliases=['rl']) # reloads all the extensions
     async def _reload(self, ctx):
-        await ctx.send('正在卸載所有插件...')
         self.bot.unload_extension('manager')
         self.bot.unload_extension('adminFunctions')
         self.bot.unload_extension('messageHandler')
         self.bot.unload_extension('musicPlayer')
         self.bot.unload_extension('luckyDraws')
         self.bot.unload_extension('kancolle')
-        await ctx.send('重新載入所有插件...')
+        await ctx.send('重新載入所有模組...')
         self.bot.load_extension('manager')
         self.bot.load_extension('adminFunctions')
         self.bot.load_extension('messageHandler')
@@ -108,7 +92,47 @@ class adminFunctions(commands.Cog):
         self.bot.load_extension('kancolle')
         await ctx.send('完成。')
 
+    @commands.command(name="ping")  # ping function, used for testing the bot's respond time. Now enhanced with voice latency and embed.
+    async def _ping(self, ctx):
+        t = await ctx.send('正在測量........')
+        # the values
+        botLatency = round(self.bot.latency * 1000)
+        cmdLatency = round((t.created_at - ctx.message.created_at).total_seconds() * 1000)
+        voiceLatency = "--"
+        if ctx.voice_client is not None:
+            if ctx.voice_client.is_playing():
+                voiceLatency = round(ctx.voice_client.latency * 1000)
+        # the embed
+        embed = discord.Embed(title=":clipboard: 西瓜的各種Ping")
+        embed.add_field(name="WebSocket延遲", value="{} ms".format(botLatency))
+        embed.add_field(name="反應時間", value="{} ms".format(cmdLatency))
+        embed.add_field(name="語音延遲", value="{} ms".format(voiceLatency))
+        embed.set_footer(text="反應時間：從使用者發出指令到收到指令所需的時間。")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="manual", aliases=['man', 'help'])  # print the manual out
+    async def _manual(self, ctx):
+        manual = open('help.txt', 'r')
+        msg = manual.read()
+        await ctx.send(msg)
+        manual.close()
+
+    @commands.command(name="about")
+    async def _about(self, ctx):
+        await ctx.trigger_typing()
+        # retrive the discord app information
+        self.bot.appinfo = await self.bot.application_info()
+        self.botid = self.bot.appinfo.id
+        name = self.bot.appinfo.name
+        owner = self.bot.appinfo.owner.mention
+        borntime = "2018-08-01 05:47:51.880000"
+        embed = discord.Embed(title='**S**ugoi **U**ltra **I**ntelligent **C**hat **A**ssistant, SUICA', colour=0xff0000)
+        embed.set_author(name="關於西瓜(SUICA)", icon_url=self.bot.user.avatar_url)
+        embed.description = 'ID:{}\n應用程式名稱：{}\n作者：{}\n建置時間：{}\n'.format(self.botid, name, owner, borntime)
+        embed.set_footer(text="{} • 使用 discord.py 及 youtube-dl".format(config.getVersion()))
+        await ctx.send(embed=embed)
 
 def setup(bot):
+    bot.remove_command('help')  # I want my own help cmd.
     bot.add_cog(adminFunctions(bot))
     print("Admin functions loaded.")
