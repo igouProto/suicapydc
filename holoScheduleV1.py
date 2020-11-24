@@ -3,7 +3,7 @@ from discord.ext import commands
 import requests
 from bs4 import BeautifulSoup
 
-# TODO: This function is DEAD, I repeat, DEAD!!!
+# TODO: This function is DEAD!!! I Shouldn't scrape other's webpage directly... Maybe try using YT's API someday.
 
 class holoScheduleV1(commands.Cog):
 	def __init__(self, bot):
