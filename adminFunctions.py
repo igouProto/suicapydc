@@ -128,7 +128,11 @@ class adminFunctions(commands.Cog):
         borntime = "2018-08-01 05:47:51.880000"
         embed = discord.Embed(title='**S**ugoi **U**ltra **I**ntelligent **C**hat **A**ssistant, SUICA', colour=0xff0000)
         embed.set_author(name="關於西瓜(SUICA)", icon_url=self.bot.user.avatar_url)
-        embed.description = 'ID:{}\n應用程式名稱：{}\n作者：{}\n建置時間：{}\n'.format(self.botid, name, owner, borntime)
+        embed.description = 'ID:{}\n' \
+                            '應用程式名稱：{}' \
+                            '\n應用程式擁有者：{}' \
+                            '\n建置時間：{}' \
+                            '\n作者：igouProto [(GitHub!)](https://github.com/igouProto/suicapydc)'.format(self.botid, name, owner, borntime)
         embed.set_footer(text="{} • 使用 discord.py 及 youtube-dl".format(config.getVersion()))
         await ctx.send(embed=embed)
 
