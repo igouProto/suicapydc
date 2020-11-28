@@ -22,7 +22,7 @@ bot.load_extension('holoScheduleV1')
 ###BASIC COMMANDS (To make sure the bot is alive)###
 '''
 Well, come to think of it, maybe the main function should not contain any command if commands are now sorted in cogs...?
-note to self: ping and manual are moved to adminFunction.py
+note to self: ping and manual are moved to adminFunctions.py
 '''
 
 ###RUN THE BOT!!!###

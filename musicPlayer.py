@@ -95,15 +95,16 @@ class musicPlayer(commands.Cog):
             del players[ctx.guild.id]
             del queues[ctx.guild.id]
             del timers[ctx.guild.id]
+            del loopQueues[ctx.guild.id]
             del pauseFlags[ctx.guild.id]
             del loopFlags[ctx.guild.id]
+            del isLooping[ctx.guild.id]
             print("cleanup finished")
         except KeyError as err:
             print("nothing to clear, leaving voice channel only")
 
     @commands.command(name='play', aliases=['p', 'P'])
     async def _play(self, ctx, *, url):
-
         # the queue system...
         async def checkqueue(ctx):
             print("called checkqueue")
@@ -127,7 +128,7 @@ class musicPlayer(commands.Cog):
                 del loopQueues[ctx.guild.id]
                 print('reached end of queue, cleaning up players and timers')
 
-        # ...and the function that triggers the queue system
+        # and the function that triggers the queue system
         def check_trigger(error):
             coro = checkqueue(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
@@ -141,6 +142,7 @@ class musicPlayer(commands.Cog):
         if ctx.author.voice is None:
             await ctx.send(":warning: 你要先加入語音頻道才能點歌喔。")
             return
+
         # automatic join voice channel if not connected
         if ctx.voice_client is None:
             voiceChannel = ctx.author.voice.channel
@@ -150,7 +152,6 @@ class musicPlayer(commands.Cog):
 
         await ctx.send(":mag_right: 正在搜尋`{}`...".format(url))
         await ctx.trigger_typing()
-
         if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():  # if something is still playing or paused then stuff the song into the queue
             # calculate total time of playlist first
             totalTime = 0
@@ -198,9 +199,7 @@ class musicPlayer(commands.Cog):
                 duration = '直播' # mark the length as "livestream"
             else:
                 duration = "{:02d}:{:02d}".format(int(player.duration / 60), int(player.duration % 60))
-            embed.add_field(name='時長',
-                            value=duration,
-                            inline=True)
+            embed.add_field(name='時長',value=duration,inline=True)
             embed.set_thumbnail(url=player.thumbnail)
             embed.set_author(name="用閃亮的歌聲開始現場演唱♪", icon_url=self.bot.user.avatar_url)
             await ctx.send(embed=embed)
@@ -270,7 +269,7 @@ class musicPlayer(commands.Cog):
                 embed.set_footer(text="[{}/{}]".format(page, len(slicedList)))
             await ctx.send(embed=embed)
         except KeyError as err:
-            await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
+            await ctx.send(":zzz: 沒有播放中的曲目。")
 
     @commands.command(name='pause', aliases=['pa', 'PA'])
     async def _pause(self, ctx):
@@ -302,7 +301,7 @@ class musicPlayer(commands.Cog):
     @commands.command(name='skip', aliases=['sk', 'SK'])
     async def _skip(self, ctx):
         if ctx.voice_client is None:
-            await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
+            await ctx.send(":zzz: 沒有播放中的曲目。")
             return
         else:
             if loopFlags[ctx.guild.id]: # if loop is enabled, disable it
@@ -331,7 +330,7 @@ class musicPlayer(commands.Cog):
     async def _shuffle(self, ctx):
         try:
             if len(queues[ctx.guild.id]) <= 1:
-                await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列？')
+                await ctx.send(':ok_hand:')
             else:
                 random.shuffle(queues[ctx.guild.id])
                 await ctx.send(':twisted_rightwards_arrows: 播放清單已隨機排列。')
@@ -420,8 +419,8 @@ class musicPlayer(commands.Cog):
         try:
             if loopFlags[ctx.guild.id] == False:  # activate loop
                 loopFlags[ctx.guild.id] = True
-                await self.bot.loop.create_task(singleLoop(ctx))  # trigger the loop function
                 await ctx.send(':repeat_one: 單曲循環播放已啟用。')
+                await self.bot.loop.create_task(singleLoop(ctx))  # trigger the loop function
             elif loopFlags[ctx.guild.id] == True:  # deactivate loop
                 loopFlags[ctx.guild.id] = False
                 isLooping[ctx.guild.id] = False
@@ -451,7 +450,7 @@ class musicPlayer(commands.Cog):
                 embed.set_footer(text="已啟用循環播放。[{}]".format(loopCount[ctx.guild.id]))
             await ctx.send(embed=embed)
         except KeyError as err:
-            await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
+            await ctx.send(":zzz: 沒有播放中的曲目。")
 
     # discord limits file size :(
     @commands.command(name='download', aliases=['dl'])
@@ -499,7 +498,12 @@ class musicPlayer(commands.Cog):
             await author.send(embed=embed)
             await ctx.send(":white_check_mark: 已將歌曲資訊傳送到私訊！")
         except KeyError as error:
-            await ctx.send(":zzz: 現在這裡很安靜喔。要不要點一首歌？")
+            await ctx.send(":zzz: 沒有播放中的曲目。")
+
+    @commands.command(name='jazz')
+    async def _jazz(self, ctx): # a shortcut for playing jazz, why not?
+        await ctx.send('[Jazz music starts.]')
+        await ctx.invoke(self.bot.get_command('play'), url = 'jazz radio')
 
 # homemade music position counter, yay
 async def timer(ctx):

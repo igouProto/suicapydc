@@ -25,7 +25,7 @@ def getPrefix():
 		print("Prefix loaded from os environment variable: \'{}\'".format(prefix))
 	return prefix
 
-def getVersion():
+def getVersion(): # TODO: come to think of it, it is stupid to store version info in config files...
 	try:
 		with open('config.json', 'r') as file:
 			configs = json.load(file)
