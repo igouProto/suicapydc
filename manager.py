@@ -28,6 +28,8 @@ class manager(commands.Cog):
 	@commands.Cog.listener()
 	async def on_command_error(self, ctx, error):
 		if isinstance(error, CommandNotFound):
+			if (ctx.message.toString.count('.') >= 2):
+				return
 			embed = discord.Embed(title=':x: 糟了個糕。', colour=0xff0000)
 			embed.description = "你好像打錯字囉。"
 			embed.set_footer(text=error)
