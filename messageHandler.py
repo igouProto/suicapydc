@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from datetime import timedelta
 import asyncio
 import config
 
@@ -29,6 +30,10 @@ class messageHandler(commands.Cog):
                 print('keyword hit')
                 msg = self.response[message.content]
                 await message.channel.send(msg)
+        if '呼哈' in message.content and message.author != self.bot.user:
+            time = message.created_at + timedelta(hours=1)
+            msg = '你的下一次呼哈：{:%H:%M:%S}'.format(time)
+            await message.channel.send(msg)
     # portal talking function
         if message.channel.id == self.portal_id:
             await self.bot.get_channel(self.messagedest).send(message.content)

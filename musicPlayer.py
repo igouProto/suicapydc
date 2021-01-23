@@ -28,19 +28,29 @@ isLooping = {}
 loopCount = {}
 
 ytdl_format_options = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[ext=m4a]',
     'extract-audio': True,
     'audio-format': 'opus',
     'noplaylist': True,
     'nocheckcertificate': True,
     'ignoreerrors': True,
     'quiet': False,
+    'force-ipv4': True,
+    'skip-unavailable-fragments': True,
     'default_search': 'auto',
-    'source_address': '0.0.0.0',
+}
+download_options = {
+    'outtmpl': '%(title)s.%(ext)s',
+    'format': 'bestaudio/best',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
 }
 ffmpeg_options = "-vn -loglevel panic -f s16le -filter_complex 'loudnorm'"  # some filters can help improve the radio-like quality, perhaps...
 # full doc of filters: https://ffmpeg.org/ffmpeg-filters.html
-beforeArgs = "-nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
+beforeArgs = "-nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 2 -re"
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
@@ -202,6 +212,7 @@ class musicPlayer(commands.Cog):
             embed.add_field(name='時長',value=duration,inline=True)
             embed.set_thumbnail(url=player.thumbnail)
             embed.set_author(name="用閃亮的歌聲開始現場演唱♪", icon_url=self.bot.user.avatar_url)
+            # embed.set_footer(text='首次播放可能需要等待一小段時間。')
             await ctx.send(embed=embed)
 
             # and a tiny little easter egg ;)
@@ -462,15 +473,6 @@ class musicPlayer(commands.Cog):
         elif player.duration >= 340: # if the duration is over 340 sec then it may exceed the file size limit if the bit rate is 192kbps (8MB = 65536Kb)
             await ctx.send(':x: 檔案大小超出限制(8MB)。') # tell the user the file size is too large anyway lol
             return
-        download_options = {
-            'outtmpl': '%(title)s.%(ext)s',
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
         await ctx.send(":arrow_down: 正在下載**{}**....".format(player.title))
         await ctx.trigger_typing()
         with youtube_dl.YoutubeDL(download_options) as ydl:
