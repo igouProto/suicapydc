@@ -226,9 +226,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
 
         if not player.is_connected:
-            await ctx.send(":zzz: 沒有播放中的曲目，或未連接至語音頻道。")
+            await ctx.send(":zzz: 未連接至語音頻道。")
+            return
 
         track = player.current
+
+        if not track:
+            await ctx.send(":zzz: 沒有播放中的曲目。")
+            return
 
         title = track.title
         length = track.info['length'] / 1000
@@ -281,7 +286,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
-        if player.queue.getLength() > 1:
+        if player.queue.getUpcoming(): #player.queue.getLength() > 1:
             embed.add_field(name="接下來",
                             value=next,
                             inline=False
@@ -359,7 +364,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":warning: 到頂了喔。") # doesn't to be working hmm
         if isinstance(exception, EmptyQueue):
             await ctx.send(":information_source: 播放清單為空。")
-
 
 
 
