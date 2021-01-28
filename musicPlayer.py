@@ -28,7 +28,7 @@ isLooping = {}
 loopCount = {}
 
 ytdl_format_options = {
-    'format': 'bestaudio[ext=m4a]',
+    'format': 'bestaudio',
     'extract-audio': True,
     'audio-format': 'opus',
     'noplaylist': True,
