@@ -57,8 +57,10 @@ class Queue:
         if not self._queue:
             raise EmptyQueue
         self.position += 1
-        if self.position > len(self._queue) - 1:
-            print("reached end of queue")
+        if self.position > len(self._queue) - 1:  # clean up queue after reaching the end
+            print("reached end of queue. cleaning up")
+            self._queue = []
+            self.position = 0
             return None
         return self._queue[self.position]
 
