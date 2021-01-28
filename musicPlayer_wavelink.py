@@ -1,8 +1,7 @@
 # followed tutorial: https://github.com/Carberra/discord.py-music-tutorial/blob/master/bot/cogs/music.py
 # some functions are stripped
+# new player based on wavelink + lavalink
 
-import asyncio
-import async_timeout
 import typing as t
 # wavelink module
 import wavelink
@@ -10,7 +9,6 @@ import wavelink
 # discord py modules
 import discord
 from discord.ext import commands
-import asyncio
 
 '''
 This cog is my attempt to rewrite the music function with wavelink
@@ -145,7 +143,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         self.bot.loop.create_task(self.start_nodes())
 
-    async def start_nodes(self):
+    async def start_nodes(self):  # connect to a lavlink noce
         await self.bot.wait_until_ready()
 
         # Initiate our nodes. For this example we will use one server.
@@ -208,6 +206,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if 'https://' not in query:
             query = f'ytsearch:{query}'
 
+        query = query.split('&')[0]  # strips away playlist from url (arbitrarily)
+
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
             await ctx.send(':x: 搜尋結果為空。')
@@ -258,8 +258,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         embed = discord.Embed(title="**{}**".format(title),
                               url=url, description="{} / {}".format(pos, duration))
-        embed.set_author(name="現正播放～♪",
-                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+        if player.is_paused:
+            embed.set_author(name="已暫停",
+                             icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+        else:
+            embed.set_author(name="現正播放～♪",
+                             icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
         if player.queue.repeat_flag:
             embed.set_footer(text='單曲循環播放已啟用。')
@@ -288,34 +292,35 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         raw_pos = player.position / 1000
         duration = "{:02d}:{:02d}".format(int(length / 60), int(length % 60))
         pos = "{:02d}:{:02d}".format(int(raw_pos / 60), int(raw_pos % 60))
+        thumb = track.thumb
 
         # prepare for the upcoming list
         upnext = ''
         index = 0
-        for track in player.queue.getUpcoming():
+        for item in player.queue.getUpcoming():
             index += 1
-            length = track.info['length'] / 1000
+            length = item.info['length'] / 1000
             upnext += ("`{:02d}.` {} **({:02d}:{:02d})**\n".format(index,
-                                                                 track.title,
-                                                                 int(length / 60),
-                                                                 int(length % 60)))
+                                                                   item.title,
+                                                                   int(length / 60),
+                                                                   int(length % 60)))
             if len(upnext) >= 900:  # coping with discord's 1024 char limit
                 break
 
         embed = discord.Embed(title="現正播放",
-                              description="**{}** ({} / {})".format(title, pos, duration)
+                              description="**{}** \n({} / {})".format(title, pos, duration)
         )
         embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
         if player.queue.getUpcoming():
-            embed.add_field(name="接下來",
+            embed.add_field(name="接下來 ({})".format(player.queue.getLength() - 1),
                             value=upnext,
                             inline=False
             )
 
-        if track.thumb is not None:
-            embed.set_thumbnail(url=track.thumb)
+        if thumb is not None:
+            embed.set_thumbnail(url=thumb)
 
         await ctx.send(embed=embed)
 
@@ -360,7 +365,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await ctx.send(":track_next: 跳過！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
-        print(f'pos:{str(player.queue.position)}, length{str(player.queue.getLength())}')
+        # print(f'pos:{str(player.queue.position)}, length{str(player.queue.getLength())}')
 
     @_skip.error
     async def _skip_error(self, ctx, exception):
@@ -389,7 +394,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await ctx.send(":track_previous: 上一首！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
-        print(f'pos:{str(player.queue.position)}, length{str(player.queue.getLength())}')
+        # print(f'pos:{str(player.queue.position)}, length{str(player.queue.getLength())}')
 
     @_previous.error
     async def _previous_error(self, ctx, exception):
