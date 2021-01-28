@@ -314,7 +314,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
         if player.queue.getUpcoming():
-            embed.add_field(name="接下來 ({})".format(player.queue.getLength() - 1),
+            embed.add_field(name="接下來", # ({})".format(player.queue.getLength() - 1),
                             value=upnext,
                             inline=False
             )
