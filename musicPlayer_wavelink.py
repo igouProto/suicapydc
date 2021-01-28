@@ -1,4 +1,5 @@
-# adapted from tutorial: https://github.com/Carberra/discord.py-music-tutorial/blob/master/bot/cogs/music.py
+# followed tutorial: https://github.com/Carberra/discord.py-music-tutorial/blob/master/bot/cogs/music.py
+# some functions are stripped
 
 import asyncio
 import async_timeout
@@ -15,44 +16,39 @@ import asyncio
 This cog is my attempt to rewrite the music function with wavelink
 '''
 
-players = {}
-queues = {}
-loopQueues = {}
-timers = {}
-
-pauseFlags = {}
-loopFlags = {}
-isLooping = {}
-
-loopCount = {}
-
 
 class AlreadyConnected(commands.CommandError):
     pass
 
+
 class NoVC(commands.CommandError):
     pass
+
 
 class EmptyQueue(commands.CommandError):
     pass
 
+
 class PlayerAlreadyPaused(commands.CommandError):
     pass
+
 
 class NoMoreSongs(commands.CommandError):
     pass
 
+
 class NoPrevSong(commands.CommandError):
     pass
+
 
 class Queue:
     def __init__(self):
         self._queue = []
         self.position = 0
+        self.repeat_flag = False
 
     def add(self, *args):
         self._queue.extend(args)  # multiple "append"
-        print(len(self._queue))
 
     def getFirstTrack(self):
         if not self._queue:
@@ -81,13 +77,18 @@ class Queue:
     def getPlayHistory(self):
         if not self._queue:
             raise EmptyQueue
-        return self._queue[self.position - 1] # i want to only display the last song
+        return self._queue[self.position] # i want to only display the last song
 
     def getLength(self):
         return len(self._queue)
 
     def clearQueue(self):
         self._queue.clear()
+
+    def toggleRepeat(self):
+        self.repeat_flag = not self.repeat_flag
+        print(self.repeat_flag)
+
 
 class WavePlayer(wavelink.Player):
     def __init__(self, *args, **kwargs):
@@ -130,6 +131,10 @@ class WavePlayer(wavelink.Player):
         except:
             pass
 
+    async def repeatTrack(self):
+        current = self.queue.getCurrentTrack()
+        await self.play(current)
+
 
 class Music(commands.Cog, wavelink.WavelinkMixin):
 
@@ -164,9 +169,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
-    @wavelink.WavelinkMixin.listener('on_track_exception')  # do smth for whatever happened
+    @wavelink.WavelinkMixin.listener('on_track_exception')  # hop to the next track when whatever happened
     async def onPlayerStop(self, node, payload):
-        await payload.player.advance()
+        if payload.player.queue.repeat_flag:
+            await payload.player.repeatTrack()
+        else:
+            await payload.player.advance()
 
     @commands.command(name='join', aliases=['summon'])
     async def _summon(self, ctx, *, channel: t.Optional[discord.VoiceChannel]):
@@ -217,8 +225,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         raw_duration = length
         duration = "{:02d}:{:02d}".format(int(raw_duration / 60), int(raw_duration % 60))
         embed.add_field(name='時長', value=duration, inline=True)
+        if player.queue.getUpcoming():
+            embed.add_field(name='播放順位', value=(player.queue.getLength() - 1 - player.queue.position), inline=True)
         embed.set_author(name="已將歌曲新增至播放清單～♪")
         # embed.set_footer(text='全新的播放器使用 Lavalink 作為音效引擎，全面提升品質及穩定度。借我宣傳一下 UwU')
+
+        if track.thumb is not None:
+            embed.set_thumbnail(url=track.thumb)
+
         await ctx.send(embed=embed)
 
     @commands.command(name='nowplay', aliases=['np'])
@@ -244,19 +258,27 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         embed = discord.Embed(title="**{}**".format(title),
                               url=url, description="{} / {}".format(pos, duration))
-        embed.set_author(name="現正播放～♪")
+        embed.set_author(name="現正播放～♪",
+                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+
+        if player.queue.repeat_flag:
+            embed.set_footer(text='單曲循環播放已啟用。')
+
+        if track.thumb is not None:
+            embed.set_thumbnail(url=track.thumb)
 
         await ctx.send(embed=embed)
 
     @commands.command(name='queue', aliases=['q'])
-    async def _queue(self, ctx, show=10):
+    async def _queue(self, ctx):
         player = self.get_player(ctx)
 
-        if player.queue.getLength() <= 0: # if the queue is empty
+        if player.queue.getLength() == 0: # if the queue is empty
             raise EmptyQueue
 
         if not player.is_connected:
             await ctx.send(":zzz: 沒有播放中的曲目，或未連接至語音頻道。")
+            return
 
         # prepare for the info queue
         track = player.current
@@ -268,16 +290,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         pos = "{:02d}:{:02d}".format(int(raw_pos / 60), int(raw_pos % 60))
 
         # prepare for the upcoming list
-        next = ''
+        upnext = ''
         index = 0
         for track in player.queue.getUpcoming():
             index += 1
             length = track.info['length'] / 1000
-            next += ("`{:02d}.` {} **({:02d}:{:02d})**\n".format(index,
-                                                                  track.title,
-                                                                  int(length / 60),
-                                                                  int(length % 60)))
-            if len(next) >= 1500:
+            upnext += ("`{:02d}.` {} **({:02d}:{:02d})**\n".format(index,
+                                                                 track.title,
+                                                                 int(length / 60),
+                                                                 int(length % 60)))
+            if len(upnext) >= 900:  # coping with discord's 1024 char limit
                 break
 
         embed = discord.Embed(title="現正播放",
@@ -286,11 +308,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
-        if player.queue.getUpcoming(): #player.queue.getLength() > 1:
+        if player.queue.getUpcoming():
             embed.add_field(name="接下來",
-                            value=next,
+                            value=upnext,
                             inline=False
             )
+
+        if track.thumb is not None:
+            embed.set_thumbnail(url=track.thumb)
 
         await ctx.send(embed=embed)
 
@@ -298,6 +323,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _queue_error(self, ctx, exception):
         if isinstance(exception, EmptyQueue):
             await ctx.send(":information_source: 播放清單為空。")
+            return
 
     @commands.command(name='pause', aliases=['pa'])
     async def _pause(self, ctx):
@@ -326,11 +352,15 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         if not player.queue.getUpcoming():
             raise NoMoreSongs
+        if player.queue.repeat_flag:
+            player.queue.toggleRepeat()
+            await ctx.send(':arrow_right: 已自動停用單曲循環播放。')
 
         await player.stop()
         await ctx.send(":track_next: 跳過！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
+        print(f'pos:{str(player.queue.position)}, length{str(player.queue.getLength())}')
 
     @_skip.error
     async def _skip_error(self, ctx, exception):
@@ -350,11 +380,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not player.queue.getPlayHistory():
             raise NoPrevSong
 
+        if player.queue.position <= 0:  # if the player is beyond the top of queue (cap pos at 0)
+            player.queue.position = 0
+            raise NoPrevSong
+
         player.queue.position -= 2
         await player.stop()
         await ctx.send(":track_previous: 上一首！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
+        print(f'pos:{str(player.queue.position)}, length{str(player.queue.getLength())}')
 
     @_previous.error
     async def _previous_error(self, ctx, exception):
@@ -365,6 +400,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, EmptyQueue):
             await ctx.send(":information_source: 播放清單為空。")
 
+    @commands.command(name='loop', aliases=['lp', 'rp', 'repeat'])
+    async def _repeat(self, ctx):
+        player = self.get_player(ctx)
+        player.queue.toggleRepeat()
+        if player.queue.repeat_flag:
+            await ctx.send(':repeat_one: 單曲循環播放已啟用。')
+        else:
+            await ctx.send(':arrow_right: 單曲循環播放已停用。')
 
 
 def setup(bot):
