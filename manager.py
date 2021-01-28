@@ -34,8 +34,10 @@ class manager(commands.Cog):
 			embed.description = "你好像打錯字囉。"
 			embed.set_footer(text=error)
 			await ctx.send(embed=embed)
-		elif isinstance(error, commands.CheckFailure):
+		if isinstance(error, commands.CheckFailure):
 			await ctx.send(':x:權限不足或操作人員非應用程式擁有者。')
+		else:
+			raise error
 
 ###loop tasks to keep heroku from putting my bot to sleep##
 async def wakeup():
