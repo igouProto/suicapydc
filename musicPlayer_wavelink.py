@@ -3,10 +3,7 @@
 # new player based on wavelink + lavalink
 
 import typing as t
-# wavelink module
 import wavelink
-
-# discord py modules
 import discord
 from discord.ext import commands
 
@@ -44,6 +41,14 @@ class NoTrackFoundByProbe(commands.CommandError):
 
 
 class AttemptedToRemoveCurrentTrack(commands.CommandError):
+    pass
+
+
+class NothingIsPlaying(commands.CommandError):
+    pass
+
+
+class SeekPositionOutOfBound(commands.CommandError):
     pass
 
 
@@ -142,7 +147,6 @@ class WavePlayer(wavelink.Player):
             await self.startPlaying()
 
     async def startPlaying(self):
-        # print('called startplaying')
         await self.play(self.queue.getFirstTrack())
 
     async def advance(self):
@@ -167,7 +171,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         self.bot.loop.create_task(self.start_nodes())
 
-    async def start_nodes(self):  # connect to a lavlink noce
+    async def start_nodes(self):  # connect to a lavlink node
         await self.bot.wait_until_ready()
 
         # Initiate our nodes. For this example we will use one server.
@@ -187,7 +191,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
-        print("Wavelink is ready!")
+        print("Lavalink is ready!")
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
@@ -215,7 +219,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _disconnect(self, ctx):
         player = self.get_player(ctx)
         await player.teardown()
-        await ctx.send(":boom: 已清除播放清單。")
+        # await ctx.send(":boom: 已清除播放清單。")
         await ctx.send(":arrow_left: 已解除連接。")
 
     @commands.command(name='play', aliases=['p'])
@@ -259,7 +263,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='nowplay', aliases=['np'])
+    @commands.command(name='nowplay', aliases=['np'])  # need error handler
     async def _nowplay(self, ctx):
         player = self.get_player(ctx)
 
@@ -332,8 +336,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if len(upnext) >= 900:  # coping with discord's 1024 char limit
                 break
 
-        embed = discord.Embed(title="現正播放",
-                              description="**{}** \n({} / {})".format(title, pos, duration))
+        embed = discord.Embed(title="**{}**".format(title),
+                              url=url, description="{} / {}".format(pos, duration))
         embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
@@ -343,17 +347,20 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             last_played = "{} **({:02d}:{:02d})**\n".format(last.title,
                                                            int(length / 60),
                                                            int(length % 60))
-            embed.add_field(name="上一首",  # ({})".format(player.queue.getLength() - 1),
+            embed.add_field(name="上一首",
                             value=last_played,
                             inline=False)
 
         if player.queue.getUpcoming():
-            embed.add_field(name="接下來", # ({})".format(player.queue.getLength() - 1),
+            embed.add_field(name="接下來",
                             value=upnext,
                             inline=False)
 
         if thumb is not None:
             embed.set_thumbnail(url=thumb)
+
+        if player.queue.repeat_flag:
+            embed.set_footer(text='已啟用單曲循環播放。')
 
         await ctx.send(embed=embed)
 
@@ -387,12 +394,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.command(name='skip', aliases=['sk'])
     async def _skip(self, ctx):
         player = self.get_player(ctx)
-
-        if not player.queue.getUpcoming():
-            raise NoMoreSongs
         if player.queue.repeat_flag:
             player.queue.toggleRepeat()
             await ctx.send(':arrow_right: 已自動停用單曲循環播放。')
+
+        if not player.queue.getUpcoming():
+            raise NoMoreSongs
 
         await player.stop()
         await ctx.send(":track_next: 跳過！")
@@ -477,7 +484,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, NoVC):
             await ctx.send(':zzz: 未連接至語音頻道。')
 
-    @commands.command(name='save', aliases=['s'])
+    @commands.command(name='save', aliases=['s'])  # need error handler
     async def _save(self, ctx):
         player = self.get_player(ctx)
 
@@ -506,7 +513,42 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await ctx.message.author.send(embed=embed)
         await ctx.send(":white_check_mark: 已將歌曲資訊傳送到私訊！")
 
+    @commands.command(name='seek', aliases=['se'])
+    async def _seek(self, ctx, pos: str = None):
+        player = self.get_player(ctx)
+
+        if not player.is_connected:
+            raise NoVC
+
+        track = player.current
+        if not track:
+            raise NothingIsPlaying
+
+        if pos is not None:
+            if ':' in pos:  # support for format like xx:xx
+                converted_pos = pos.split(':')
+                seek = (int(converted_pos[0]) * 60 + int(converted_pos[1])) * 1000
+            else:  # if number is directly input
+                seek = int(pos) * 1000
+
+            if seek > player.current.length or seek < 0:
+                raise SeekPositionOutOfBound
+
+            seekDisp = int(seek / 1000)
+            await player.seek(position=seek)
+            await ctx.send(':fast_forward: 已跳轉至 **{:02d}:{:02d}**'.format(int(seekDisp / 60), seekDisp % 60))
+            await ctx.invoke(self.bot.get_command('nowplay'))
+
+    @_seek.error
+    async def _seek_error(self, ctx, exception):
+        if isinstance(exception, NoVC):
+            await ctx.send(':zzz: 未連接至語音頻道。')
+        if isinstance(exception, NothingIsPlaying):
+            await ctx.send(":zzz: 沒有播放中的曲目。")
+        if isinstance(exception, SeekPositionOutOfBound):
+            await ctx.send(":x: 指定的時間點超出歌曲範圍。")
+
 
 def setup(bot):
     bot.add_cog(Music(bot))
-    print("Wavelink Music player loaded.")
+    print("Wavelink (Lavalink) Music player loaded.")
