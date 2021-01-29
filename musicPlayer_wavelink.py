@@ -39,6 +39,14 @@ class NoPrevSong(commands.CommandError):
     pass
 
 
+class NoTrackFoundByProbe(commands.CommandError):
+    pass
+
+
+class AttemptedToRemoveCurrentTrack(commands.CommandError):
+    pass
+
+
 class Queue:
     def __init__(self):
         self._queue = []
@@ -47,6 +55,9 @@ class Queue:
 
     def add(self, *args):
         self._queue.extend(args)  # multiple "append"
+
+    def remove(self, index):
+        del self._queue[index]
 
     def getFirstTrack(self):
         if not self._queue:
@@ -59,7 +70,7 @@ class Queue:
         self.position += 1
         if self.position > len(self._queue) - 1:  # clean up queue after reaching the end
             print("reached end of queue. cleaning up")
-            self._queue = []
+            self.clearQueue()
             self.position = 0
             return None
         return self._queue[self.position]
@@ -77,7 +88,18 @@ class Queue:
     def getPlayHistory(self):
         if not self._queue:
             raise EmptyQueue
-        return self._queue[self.position] # i want to only display the last song
+        if self.position == 0:  # if it is at the top of the queue then return none. idk why queue[-1] doesn't throw a index out of bound??
+            return None
+        return self._queue[self.position - 1]  # i want to only display the last song
+
+    def probeForTrack(self, index: int):  # probe for track in any position
+        if not self._queue:
+            raise EmptyQueue
+        if index >= self.getLength():
+            return None
+        if index < 0:
+            return None
+        return self._queue[index]
 
     def getLength(self):
         return len(self._queue)
@@ -274,6 +296,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             embed.set_thumbnail(url=track.thumb)
 
         await ctx.send(embed=embed)
+        # print(f"pos: {player.queue.position}")
 
     @commands.command(name='queue', aliases=['q'])
     async def _queue(self, ctx):
@@ -310,16 +333,24 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 break
 
         embed = discord.Embed(title="現正播放",
-                              description="**{}** \n({} / {})".format(title, pos, duration)
-        )
+                              description="**{}** \n({} / {})".format(title, pos, duration))
         embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+
+        if player.queue.getPlayHistory():
+            last = player.queue.getPlayHistory()
+            length = last.info['length'] / 1000
+            last_played = "{} **({:02d}:{:02d})**\n".format(last.title,
+                                                           int(length / 60),
+                                                           int(length % 60))
+            embed.add_field(name="上一首",  # ({})".format(player.queue.getLength() - 1),
+                            value=last_played,
+                            inline=False)
 
         if player.queue.getUpcoming():
             embed.add_field(name="接下來", # ({})".format(player.queue.getLength() - 1),
                             value=upnext,
-                            inline=False
-            )
+                            inline=False)
 
         if thumb is not None:
             embed.set_thumbnail(url=thumb)
@@ -329,7 +360,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @_queue.error
     async def _queue_error(self, ctx, exception):
         if isinstance(exception, EmptyQueue):
-            await ctx.send(":information_source: 播放清單為空。")
+            await ctx.send(":u7a7a: 播放清單為空。")
             return
 
     @commands.command(name='pause', aliases=['pa'])
@@ -380,7 +411,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, EmptyQueue):
             await ctx.send(":information_source: 播放清單為空。")
 
-    @commands.command(name='previous', aliases=['pr'])
+    @commands.command(name='previous', aliases=['pr', 'prev'])
     async def _previous(self, ctx):
         player = self.get_player(ctx)
 
@@ -391,8 +422,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player.queue.position = 0
             raise NoPrevSong
 
-        player.queue.position -= 2
-        await player.stop()
+        player.queue.position -= 2  # step back 2 steps first
+        await player.stop()  # then let it advance 1 step
         await ctx.send(":track_previous: 上一首！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
@@ -403,9 +434,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
 
         if isinstance(exception, NoPrevSong):
-            await ctx.send(":warning: 到頂了喔。") # doesn't to be working hmm
+            await ctx.send(":warning: 到頂了喔。")
         if isinstance(exception, EmptyQueue):
-            await ctx.send(":information_source: 播放清單為空。")
+            await ctx.send(":u7a7a: 播放清單為空。")
 
     @commands.command(name='loop', aliases=['lp', 'rp', 'repeat'])
     async def _repeat(self, ctx):
@@ -415,6 +446,65 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(':repeat_one: 單曲循環播放已啟用。')
         else:
             await ctx.send(':arrow_right: 單曲循環播放已停用。')
+
+    @commands.command(name='remove', aliases=['rm'])
+    async def _remove(self, ctx, query: int):
+        player = self.get_player(ctx)
+        if not player.is_connected:
+            raise NoVC
+
+        index = int(player.queue.position) + query
+        if not player.queue.probeForTrack(index):
+            raise NoTrackFoundByProbe
+        if query == 0:
+            raise AttemptedToRemoveCurrentTrack
+        if query < 0:
+            raise NoTrackFoundByProbe  # limit to remove from upcoming tracks only to prevent confusion
+
+        track = player.queue.probeForTrack(index)
+        player.queue.remove(index)
+        await ctx.send(f':white_check_mark: 已從播放清單移除**{track.title}**。')
+        await ctx.invoke(self.bot.get_command('queue'))
+
+    @_remove.error
+    async def _remove_error(self, ctx, exception):
+        if isinstance(exception, NoTrackFoundByProbe):
+            await ctx.send(':warning: 曲目編號超出範圍。')
+        if isinstance(exception, EmptyQueue):
+            await ctx.send(':u7a7a: 播放清單為空。')
+        if isinstance(exception, AttemptedToRemoveCurrentTrack):
+            await ctx.send(':x: 無法移除播放中的曲目。')
+        if isinstance(exception, NoVC):
+            await ctx.send(':zzz: 未連接至語音頻道。')
+
+    @commands.command(name='save', aliases=['s'])
+    async def _save(self, ctx):
+        player = self.get_player(ctx)
+
+        if not player.is_connected:
+            await ctx.send(":zzz: 未連接至語音頻道。")
+            return
+
+        track = player.current
+
+        if not track:
+            await ctx.send(":zzz: 沒有播放中的曲目。")
+            return
+
+        title = track.title
+        length = track.info['length'] / 1000
+        url = track.info['uri']
+        duration = "{:02d}:{:02d}".format(int(length / 60), int(length % 60))
+
+        embed = discord.Embed(title="**{}**".format(title),
+                              url=url, description="{}".format(url))
+        embed.set_author(name="早安啊，這是你剛剛存下來的曲子♪", icon_url=self.bot.user.avatar_url)
+
+        if track.thumb is not None:
+            embed.set_thumbnail(url=track.thumb)
+
+        await ctx.message.author.send(embed=embed)
+        await ctx.send(":white_check_mark: 已將歌曲資訊傳送到私訊！")
 
 
 def setup(bot):

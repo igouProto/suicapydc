@@ -15,10 +15,10 @@ bot.load_extension('manager')
 bot.load_extension('adminFunctions')
 bot.load_extension('messageHandler')
 bot.load_extension('musicPlayer_wavelink')
-# bot.load_extension('musicPlayer')
+# bot.load_extension('musicPlayer')  # dead
 bot.load_extension('luckyDraws')
 bot.load_extension('kancolle')
-bot.load_extension('holoScheduleV1')
+# bot.load_extension('holoScheduleV1')  # dead
 
 ###BASIC COMMANDS (To make sure the bot is alive)###
 '''

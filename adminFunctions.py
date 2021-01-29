@@ -99,15 +99,14 @@ class adminFunctions(commands.Cog):
         botLatency = round(self.bot.latency * 1000)
         cmdLatency = round((t.created_at - ctx.message.created_at).total_seconds() * 1000)
         voiceLatency = "--"
-        if ctx.voice_client is not None:
-            if ctx.voice_client.is_playing():
-                voiceLatency = round(ctx.voice_client.latency * 1000)
+        # if ctx.voice_client is not None:
+        #     voiceLatency = round(ctx.voice_client.latency * 1000)
         # the embed
         embed = discord.Embed(title=":clipboard: 西瓜的各種Ping")
         embed.add_field(name="WebSocket延遲", value="{} ms".format(botLatency))
         embed.add_field(name="反應時間", value="{} ms".format(cmdLatency))
         embed.add_field(name="語音延遲", value="{} ms".format(voiceLatency))
-        embed.set_footer(text="反應時間：從使用者發出指令到收到指令所需的時間。")
+        embed.set_footer(text="語音延遲量不出來了，哭哭。")
         await ctx.send(embed=embed)
 
     @commands.command(name="manual", aliases=['man', 'help'])  # print the manual out
@@ -133,7 +132,7 @@ class adminFunctions(commands.Cog):
                             '\n應用程式擁有者：{}' \
                             '\n建置時間：{}' \
                             '\n作者：igouProto [(GitHub!)](https://github.com/igouProto/suicapydc)'.format(self.botid, name, owner, borntime)
-        embed.set_footer(text="{} • 使用 discord.py 及 youtube-dl".format(config.getVersion()))
+        embed.set_footer(text="{} • 使用 discord.py 及 Wavelink (播放器)".format(config.getVersion()))
         await ctx.send(embed=embed)
 
 def setup(bot):
