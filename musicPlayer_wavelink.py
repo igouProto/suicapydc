@@ -112,9 +112,18 @@ class Queue:
     def clearQueue(self):
         self._queue.clear()
 
+    def clearNotPlaying(self):
+        del(self._queue[self.position + 1:])  # clear upcoming songs
+        del (self._queue[:self.position])  # clear played songs
+        self.position = 0  # reset player queue position
+
     def toggleRepeat(self):
         self.repeat_flag = not self.repeat_flag
         print(self.repeat_flag)
+
+    def jump(self, index: int):
+        print(f'index in jump: {index}')
+        self.position = index - 1
 
 
 class WavePlayer(wavelink.Player):
@@ -140,9 +149,11 @@ class WavePlayer(wavelink.Player):
             pass
 
     async def addTrack(self, ctx, tracks):
-        # if isinstance(tracks, wavelink.TrackPlaylist):
-        #    self.queue.add(*tracks.tracks)
-        self.queue.add(tracks[0])
+        if isinstance(tracks, wavelink.TrackPlaylist):
+            self.queue.add(*tracks.tracks)
+        else:
+            self.queue.add(tracks[0])
+
         if not self.is_playing:
             await self.startPlaying()
 
@@ -234,7 +245,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if 'https://' not in query:
             query = f'ytsearch:{query}'
 
-        query = query.split('&')[0]  # strips away playlist from url (arbitrarily)
+        if '&list=' in query:  # if user attempts to add song with playlist open
+            query = query.split('&')[0]  # strips away playlist from url (arbitrarily)
+            await ctx.send(':information_source: 如要新增播放清單，請貼上清單網址。')
 
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
@@ -243,7 +256,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await player.addTrack(ctx=ctx, tracks=tracks)
 
         # the info embed
-        track = tracks[0]
+        if '/playlist?' in query:  # if user stuffed a playlist
+            track = player.current  # display the current song (cuz i can't directly access TrackPlayList, hmm)
+            await ctx.send(':white_check_mark: 已成功新增播放清單。輸入 **.queue** 以查看。')
+        else:
+            track = tracks[0]
         title = track.title
         length = track.info['length'] / 1000
         author = track.info['author']
@@ -253,9 +270,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         raw_duration = length
         duration = "{:02d}:{:02d}".format(int(raw_duration / 60), int(raw_duration % 60))
         embed.add_field(name='時長', value=duration, inline=True)
-        if player.queue.getUpcoming():
-            embed.add_field(name='播放順位', value=(player.queue.getLength() - 1 - player.queue.position), inline=True)
-        embed.set_author(name="已將歌曲新增至播放清單～♪")
+        # if player.queue.getUpcoming():
+        #     embed.add_field(name='播放順位', value=(player.queue.getLength() - 1 - player.queue.position), inline=True)
+        embed.set_author(name="{} 已將歌曲加入播放清單～♪".format(ctx.author.display_name), icon_url=ctx.author.avatar_url)
         # embed.set_footer(text='全新的播放器使用 Lavalink 作為音效引擎，全面提升品質及穩定度。借我宣傳一下 UwU')
 
         if track.thumb is not None:
@@ -326,9 +343,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # prepare for the upcoming list
         upnext = ''
         index = 0
+        listDuration = 0
         for item in player.queue.getUpcoming():
             index += 1
             length = item.info['length'] / 1000
+            listDuration += length
             upnext += ("`{:02d}.` {} **({:02d}:{:02d})**\n".format(index,
                                                                    item.title,
                                                                    int(length / 60),
@@ -352,7 +371,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                             inline=False)
 
         if player.queue.getUpcoming():
-            embed.add_field(name="接下來",
+            embed.add_field(name=f"接下來 ({len(player.queue.getUpcoming())}首 • 總時長 {int(listDuration / 60)}:{int(listDuration % 60)})",
                             value=upnext,
                             inline=False)
 
@@ -405,7 +424,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await ctx.send(":track_next: 跳過！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
-        # print(f'pos:{str(player.queue.position)}, length{str(player.queue.getLength())}')
 
     @_skip.error
     async def _skip_error(self, ctx, exception):
@@ -470,7 +488,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         track = player.queue.probeForTrack(index)
         player.queue.remove(index)
-        await ctx.send(f':white_check_mark: 已從播放清單移除**{track.title}**。')
+        await ctx.send(f':white_check_mark: 已從播放清單移除 **{track.title}**。')
         await ctx.invoke(self.bot.get_command('queue'))
 
     @_remove.error
@@ -548,6 +566,51 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, SeekPositionOutOfBound):
             await ctx.send(":x: 指定的時間點超出歌曲範圍。")
 
+    @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but the one's playing)
+    async def _clear(self, ctx):
+        player = self.get_player(ctx)
+
+        if player.queue.getLength() == 0:  # if the queue is empty
+            raise EmptyQueue
+
+        if not player.is_connected:
+            await ctx.send(":zzz: 沒有播放中的曲目，或未連接至語音頻道。")
+            return
+
+        player.queue.clearNotPlaying()
+        await ctx.send(':boom: 已清除播放清單（僅保留當前曲目）。')
+
+    @_clear.error
+    async def _clear_error(self, ctx, exception):
+        if isinstance(exception, EmptyQueue):
+            await ctx.send(":u7a7a: 播放清單為空。")
+
+    @commands.command(name='jump', aliases=['j', 'jmp'])
+    async def _jump(self, ctx, step: int):
+        player = self.get_player(ctx)
+        if not player.is_connected:
+            raise NoVC
+
+        index = int(player.queue.position) + step
+        if not player.queue.probeForTrack(index):
+            raise NoTrackFoundByProbe
+
+        player.queue.jump(index)
+        await player.stop()
+        await ctx.send(":track_next: 跳過！")
+
+        await ctx.invoke(self.bot.get_command('nowplay'))
+
+    @_jump.error
+    async def _jump_error(self, ctx, exception):
+        if isinstance(exception, NoTrackFoundByProbe):
+            await ctx.send(':warning: 曲目編號超出範圍。')
+        if isinstance(exception, EmptyQueue):
+            await ctx.send(':u7a7a: 播放清單為空。')
+        if isinstance(exception, AttemptedToRemoveCurrentTrack):
+            await ctx.send(':x: 無法移除播放中的曲目。')
+        if isinstance(exception, NoVC):
+            await ctx.send(':zzz: 未連接至語音頻道。')
 
 def setup(bot):
     bot.add_cog(Music(bot))
