@@ -63,6 +63,8 @@ class Queue:
 
     def remove(self, index):
         del self._queue[index]
+        if index < self.position:  # move position backwards if smth before the playing song was removed
+            self.position -= 1
 
     def getFirstTrack(self):
         if not self._queue:
@@ -247,9 +249,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await ctx.send(":mag_right: 正在搜尋`{}`...".format(query))
         await ctx.trigger_typing()
-
+        #  TODO: Try regex match, perhaps??
         if 'https://' not in query:
-            query = f'ytsearch:{query}'  # treat
+            query = f'ytsearch:{query}'  # treat non-url queries as youtube search
 
         if '&list=' in query:  # if user attempts to add song with playlist open
             query = query.split('&')[0]  # strips away playlist from url (arbitrarily)
@@ -258,6 +260,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
             await ctx.send(':x: 搜尋結果為空。')
+            if '/playlist?' in query:
+                await ctx.send(':information_source: 此清單可能為私人清單，請檢查播放清單檢視權限。')
 
         await player.addTrack(ctx=ctx, tracks=tracks)
 
@@ -361,7 +365,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         slicedLists = [fullList[i: i + 10] for i in range(0, len(fullList), 10)]  # 10 item per sub list
         queueDisp = ''
 
-        if not page or page <= 0 or page > len(slicedLists):  # automatically jump to the page where the current playing track is in, if no pg num is indicated, or invalid number
+        if not page or page <= 0 or page > len(slicedLists):
+            # automatically jump to the page where the current playing track is in,
+            # if no pg num is indicated, or pg num is invalid (i.e. -1 or out of bounds)
             page = math.floor(int(player.queue.getPosition()) / 10) + 1
 
         # prepare for the info queue
@@ -611,7 +617,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not player.is_connected:
             raise NoVC
 
-        index = step # int(player.queue.position) + step
+        index = step
         if not player.queue.probeForTrack(index):
             raise NoTrackFoundByProbe
 

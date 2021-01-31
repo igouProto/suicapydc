@@ -11,11 +11,9 @@ import random
 import os
 
 '''
-This cog contains EVERYTHING about the music playing function. Still looks like spaghetti though.
-More documentation will come soon as there is a lot to say about it... (Probably?)
-edit: this cog is now deprecated as Lavalink is now the new audio node.
+this cog is now deprecated as Lavalink is now the new audio node, and there's now a brand new player based on wavelink.
+let's leave this here for...memorial purposes?
 '''
-# TODO: jump to track function (_jump())
 
 players = {}
 queues = {}
