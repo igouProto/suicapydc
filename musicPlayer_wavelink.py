@@ -1,7 +1,7 @@
 # followed tutorial: https://github.com/Carberra/discord.py-music-tutorial/blob/master/bot/cogs/music.py
 # some functions are stripped
 # new player based on wavelink + lavalink
-
+import math
 import typing as t
 import wavelink
 import discord
@@ -108,6 +108,12 @@ class Queue:
 
     def getLength(self):
         return len(self._queue)
+
+    def getPosition(self):
+        return self.position
+
+    def getFullQueue(self):
+        return self._queue
 
     def clearQueue(self):
         self._queue.clear()
@@ -243,7 +249,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await ctx.trigger_typing()
 
         if 'https://' not in query:
-            query = f'ytsearch:{query}'
+            query = f'ytsearch:{query}'  # treat
 
         if '&list=' in query:  # if user attempts to add song with playlist open
             query = query.split('&')[0]  # strips away playlist from url (arbitrarily)
@@ -273,7 +279,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # if player.queue.getUpcoming():
         #     embed.add_field(name='播放順位', value=(player.queue.getLength() - 1 - player.queue.position), inline=True)
         embed.set_author(name="{} 已將歌曲加入播放清單～♪".format(ctx.author.display_name), icon_url=ctx.author.avatar_url)
-        # embed.set_footer(text='全新的播放器使用 Lavalink 作為音效引擎，全面提升品質及穩定度。借我宣傳一下 UwU')
 
         if track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
@@ -301,8 +306,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         duration = "{:02d}:{:02d}".format(int(length / 60), int(length % 60))
         pos = "{:02d}:{:02d}".format(int(raw_pos / 60), int(raw_pos % 60))
 
-        embed = discord.Embed(title="**{}**".format(title),
-                              url=url, description="{} / {}".format(pos, duration))
+        if player.queue.getUpcoming():
+            embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition(), title),
+                                  url=url, description="{} / {}".format(pos, duration))
+        else:
+            embed = discord.Embed(title="**{}**".format(title),
+                                  url=url, description="{} / {}".format(pos, duration))
+
         if player.is_paused:
             embed.set_author(name="已暫停",
                              icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
@@ -320,7 +330,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # print(f"pos: {player.queue.position}")
 
     @commands.command(name='queue', aliases=['q'])
-    async def _queue(self, ctx):
+    async def _queue(self, ctx, page:int = None):
         player = self.get_player(ctx)
 
         if player.queue.getLength() == 0: # if the queue is empty
@@ -329,6 +339,30 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not player.is_connected:
             await ctx.send(":zzz: 沒有播放中的曲目，或未連接至語音頻道。")
             return
+
+        # prepare the queue. load the full queue and slice them into 10 items per sublist
+        index = 0
+        listDuration = 0
+        fullList = []
+        slicedLists = []
+        for track in player.queue.getFullQueue():
+            length = int(track.info['length'] / 1000)
+            trackInfo = "`{:02d}.` {} **({:02d}:{:02d})**\n".format(index,
+                                                                    track.title,
+                                                                    int(length / 60),
+                                                                    int(length % 60))
+            if index == player.queue.getPosition():
+                trackInfo = f'**► {trackInfo}**'
+
+            fullList.append(trackInfo)
+            listDuration += length
+            index += 1
+
+        slicedLists = [fullList[i: i + 10] for i in range(0, len(fullList), 10)]  # 10 item per sub list
+        queueDisp = ''
+
+        if not page or page <= 0 or page > len(slicedLists):  # automatically jump to the page where the current playing track is in, if no pg num is indicated, or invalid number
+            page = math.floor(int(player.queue.getPosition()) / 10) + 1
 
         # prepare for the info queue
         track = player.current
@@ -340,39 +374,26 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         pos = "{:02d}:{:02d}".format(int(raw_pos / 60), int(raw_pos % 60))
         thumb = track.thumb
 
-        # prepare for the upcoming list
-        upnext = ''
-        index = 0
-        listDuration = 0
-        for item in player.queue.getUpcoming():
-            index += 1
-            length = item.info['length'] / 1000
-            listDuration += length
-            upnext += ("`{:02d}.` {} **({:02d}:{:02d})**\n".format(index,
-                                                                   item.title,
-                                                                   int(length / 60),
-                                                                   int(length % 60)))
-            if len(upnext) >= 900:  # coping with discord's 1024 char limit
-                break
+        # display specific page of sliced list
+        for trackInfo in slicedLists[page - 1]:
+            queueDisp += trackInfo
 
-        embed = discord.Embed(title="**{}**".format(title),
-                              url=url, description="{} / {}".format(pos, duration))
+        if player.queue.getUpcoming():  # display track number if the current track is not the only song in this session
+            embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition(), title),
+                                  url=url, description="{} / {}".format(pos, duration))
+        else:
+            embed = discord.Embed(title="**{}**".format(title),
+                                  url=url, description="{} / {}".format(pos, duration))
+
         embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
-        if player.queue.getPlayHistory():
-            last = player.queue.getPlayHistory()
-            length = last.info['length'] / 1000
-            last_played = "{} **({:02d}:{:02d})**\n".format(last.title,
-                                                           int(length / 60),
-                                                           int(length % 60))
-            embed.add_field(name="上一首",
-                            value=last_played,
-                            inline=False)
-
-        if player.queue.getUpcoming():
-            embed.add_field(name=f"接下來 ({len(player.queue.getUpcoming())}首 • 總時長 {int(listDuration / 60)}:{int(listDuration % 60)})",
-                            value=upnext,
+        if player.queue.getFullQueue():
+            embed.add_field(name="播放清單 ({}首 • 總時長 {:02d}:{:02d} • 頁數 {} / {})".format(player.queue.getLength(),
+                                                                                      int(listDuration / 60),
+                                                                                      int(listDuration % 60),
+                                                                                      page, len(slicedLists)),
+                            value=queueDisp,
                             inline=False)
 
         if thumb is not None:
@@ -473,18 +494,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(':arrow_right: 單曲循環播放已停用。')
 
     @commands.command(name='remove', aliases=['rm'])
-    async def _remove(self, ctx, query: int):
+    async def _remove(self, ctx, index: int):
         player = self.get_player(ctx)
         if not player.is_connected:
             raise NoVC
 
-        index = int(player.queue.position) + query
         if not player.queue.probeForTrack(index):
             raise NoTrackFoundByProbe
-        if query == 0:
+        if index == player.queue.getPosition():
             raise AttemptedToRemoveCurrentTrack
-        if query < 0:
-            raise NoTrackFoundByProbe  # limit to remove from upcoming tracks only to prevent confusion
+        if index < 0:
+            raise NoTrackFoundByProbe
 
         track = player.queue.probeForTrack(index)
         player.queue.remove(index)
@@ -591,7 +611,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not player.is_connected:
             raise NoVC
 
-        index = int(player.queue.position) + step
+        index = step # int(player.queue.position) + step
         if not player.queue.probeForTrack(index):
             raise NoTrackFoundByProbe
 
