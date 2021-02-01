@@ -57,6 +57,7 @@ class Queue:
         self._queue = []
         self.position = 0
         self.repeat_flag = False
+        self.waiting_for_next = False
 
     def add(self, *args):
         self._queue.extend(args)  # multiple "append"
@@ -75,10 +76,13 @@ class Queue:
         if not self._queue:
             raise EmptyQueue
         self.position += 1
-        if self.position > len(self._queue) - 1:  # clean up queue after reaching the end
-            print("reached end of queue. cleaning up")
-            self.clearQueue()
-            self.position = 0
+        self.waiting_for_next = False
+        if self.position > len(self._queue) - 1:
+            print("reached end of queue.")
+            self.waiting_for_next = True
+            self.position -= 1
+            # self.clearQueue()
+            # self.position = 0
             return None
         return self._queue[self.position]
 
@@ -166,10 +170,14 @@ class WavePlayer(wavelink.Player):
             await self.startPlaying()
 
     async def startPlaying(self):
-        await self.play(self.queue.getFirstTrack())
+        if self.queue.waiting_for_next:
+            await self.play(self.queue.getNextTrack())
+        else:
+            await self.play(self.queue.getFirstTrack())
 
     async def advance(self):
         try:
+            print(self.position)
             track = self.queue.getNextTrack()
             if track is not None:
                 await self.play(track)
@@ -337,7 +345,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _queue(self, ctx, page:int = None):
         player = self.get_player(ctx)
 
-        if player.queue.getLength() == 0: # if the queue is empty
+        if player.queue.getLength() == 0:  # if the queue is empty
             raise EmptyQueue
 
         if not player.is_connected:
@@ -372,6 +380,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         # prepare for the info queue
         track = player.current
+        if not track:
+            track = player.queue.getPlayHistory()
         title = track.title
         length = track.info['length'] / 1000
         url = track.info['uri']
@@ -384,12 +394,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         for trackInfo in slicedLists[page - 1]:
             queueDisp += trackInfo
 
-        if player.queue.getUpcoming():  # display track number if the current track is not the only song in this session
-            embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition(), title),
-                                  url=url, description="{} / {}".format(pos, duration))
-        else:
-            embed = discord.Embed(title="**{}**".format(title),
-                                  url=url, description="{} / {}".format(pos, duration))
+        embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition(), title),
+                              url=url, description="{} / {}".format(pos, duration))
 
         embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
