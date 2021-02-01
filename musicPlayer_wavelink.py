@@ -134,7 +134,6 @@ class Queue:
         print(self.repeat_flag)
 
     def jump(self, index: int):
-        print(f'index in jump: {index}')
         self.position = index - 1
 
 
@@ -177,7 +176,6 @@ class WavePlayer(wavelink.Player):
 
     async def advance(self):
         try:
-            print(self.position)
             track = self.queue.getNextTrack()
             if track is not None:
                 await self.play(track)
@@ -198,7 +196,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         self.bot.loop.create_task(self.start_nodes())
 
-    async def start_nodes(self):  # connect to a lavlink node
+    async def start_nodes(self):  # connect to a lavalink node
         await self.bot.wait_until_ready()
 
         # Initiate our nodes. For this example we will use one server.
@@ -263,7 +261,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         if '&list=' in query:  # if user attempts to add song with playlist open
             query = query.split('&')[0]  # strips away playlist from url (arbitrarily)
-            await ctx.send(':information_source: 如要新增播放清單，請貼上清單網址。')
+            await ctx.send(':information_source: 如要新增播放清單，請在 play 指令後方貼上清單網址。')
 
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
@@ -297,19 +295,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='nowplay', aliases=['np'])  # need error handler
+    @commands.command(name='nowplay', aliases=['np'])
     async def _nowplay(self, ctx):
         player = self.get_player(ctx)
 
         if not player.is_connected:
-            await ctx.send(":zzz: 未連接至語音頻道。")
-            return
+            raise NoVC
 
         track = player.current
-
         if not track:
-            await ctx.send(":zzz: 沒有播放中的曲目。")
-            return
+            raise NothingIsPlaying
 
         title = track.title
         length = track.info['length'] / 1000
@@ -340,6 +335,21 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await ctx.send(embed=embed)
         # print(f"pos: {player.queue.position}")
+
+    @_nowplay.error
+    async def _nowplay_error(self, ctx, exception):
+        if isinstance(exception, NoVC):
+            await ctx.send(":zzz: 未連接至語音頻道。")
+        if isinstance(exception, NothingIsPlaying):
+            player = self.get_player(ctx)
+            embed = discord.Embed(title="`--.` **－－－－－－－－**", description='--:-- / --:--')
+            embed.set_author(name="沒有播放中的曲目。", icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+            embed.set_thumbnail(url='https://upload.wikimedia.org/wikipedia/commons/4/48/BLANK_ICON.png')
+            if player.queue.waiting_for_next:
+                embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌。')
+            else:
+                embed.set_footer(text='請使用.play指令點歌。')
+            await ctx.send(embed=embed)
 
     @commands.command(name='queue', aliases=['q'])
     async def _queue(self, ctx, page:int = None):
@@ -381,7 +391,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # prepare for the info queue
         track = player.current
         if not track:
-            track = player.queue.getPlayHistory()
+            track = player.queue.probeForTrack(player.queue.getPosition())
         title = track.title
         length = track.info['length'] / 1000
         url = track.info['uri']
@@ -414,13 +424,26 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.repeat_flag:
             embed.set_footer(text='已啟用單曲循環播放。')
 
+        if player.queue.waiting_for_next:
+            embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌，或使用.pr / .jump指令回到上一首或指定曲目。')
+
         await ctx.send(embed=embed)
 
     @_queue.error
     async def _queue_error(self, ctx, exception):
-        if isinstance(exception, EmptyQueue):
-            await ctx.send(":u7a7a: 播放清單為空。")
-            return
+        if isinstance(exception, EmptyQueue):  # yeah i decided to make a fancy embed...just to display an error message
+            player = self.get_player(ctx)
+            embed = discord.Embed(title="`--.` **－－－－－－－－**", description='--:-- / --:--')
+            embed.set_author(name="播放清單為空。", icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+            embed.set_thumbnail(url='https://upload.wikimedia.org/wikipedia/commons/4/48/BLANK_ICON.png')
+            if player.queue.waiting_for_next:
+                embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌。')
+            else:
+                embed.set_footer(text='請使用.play指令點歌。')
+            embed.add_field(name="播放清單 (0首 • 總時長 --:-- • 頁數 - / -)",
+                            value='`--.` －－－－－－－－ **(--:--)**',
+                            inline=False)
+            await ctx.send(embed=embed)
 
     @commands.command(name='pause', aliases=['pa'])
     async def _pause(self, ctx):
@@ -480,8 +503,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player.queue.position = 0
             raise NoPrevSong
 
-        player.queue.position -= 2  # step back 2 steps first
-        await player.stop()  # then let it advance 1 step
+        if not player.queue.waiting_for_next:  # normal playback
+            player.queue.position -= 2  # step back 2 steps first
+            await player.stop()  # then let it advance 1 step
+        else:  # if user decided to go backward while the player is waiting
+            await(player.play(player.queue.probeForTrack(player.queue.position)))  # pick up the current song and play it again
+            player.queue.waiting_for_next = False  # remember to flip this back to false, cause the player is not waiting for new song now...
         await ctx.send(":track_previous: 上一首！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
@@ -598,7 +625,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, SeekPositionOutOfBound):
             await ctx.send(":x: 指定的時間點超出歌曲範圍。")
 
-    @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but the one's playing)
+    @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
     async def _clear(self, ctx):
         player = self.get_player(ctx)
 
@@ -609,8 +636,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":zzz: 沒有播放中的曲目，或未連接至語音頻道。")
             return
 
-        player.queue.clearNotPlaying()
-        await ctx.send(':boom: 已清除播放清單（僅保留當前曲目）。')
+        if player.queue.waiting_for_next:
+            player.queue.clearQueue()
+            await ctx.send(':boom: 已清除播放清單。')
+        else:
+            player.queue.clearNotPlaying()
+            await ctx.send(':boom: 已清除播放清單（保留當前曲目）。')
 
     @_clear.error
     async def _clear_error(self, ctx, exception):
@@ -629,6 +660,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         player.queue.jump(index)
         await player.stop()
+
+        if player.queue.waiting_for_next:  # if the player is waiting for the next song, and user decided to jump to track...
+            await player.advance()  # then do an advance
+            player.queue.waiting_for_next = False
+
         await ctx.send(":track_next: 跳過！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
