@@ -1,6 +1,7 @@
 # followed tutorial: https://github.com/Carberra/discord.py-music-tutorial/blob/master/bot/cogs/music.py
 # some functions are stripped
 # new player based on wavelink + lavalink
+import asyncio
 import math
 import typing as t
 import wavelink
@@ -135,6 +136,9 @@ class Queue:
 
     def jump(self, index: int):
         self.position = index - 1
+
+    def resetPosition(self):
+        self.position = 0
 
 
 class WavePlayer(wavelink.Player):
@@ -341,25 +345,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, NoVC):
             await ctx.send(":zzz: 未連接至語音頻道。")
         if isinstance(exception, NothingIsPlaying):
-            player = self.get_player(ctx)
-            embed = discord.Embed(title="`--.` **－－－－－－－－**", description='--:-- / --:--')
-            embed.set_author(name="沒有播放中的曲目。", icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
-            embed.set_thumbnail(url='https://upload.wikimedia.org/wikipedia/commons/4/48/BLANK_ICON.png')
-            if player.queue.waiting_for_next:
-                embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌。')
-            else:
-                embed.set_footer(text='請使用.play指令點歌。')
-            await ctx.send(embed=embed)
+            await ctx.send(":zzz: 沒有播放中的曲目。")
 
     @commands.command(name='queue', aliases=['q'])
-    async def _queue(self, ctx, page:int = None):
+    async def _queue(self, ctx, page: int = None):
         player = self.get_player(ctx)
 
         if player.queue.getLength() == 0:  # if the queue is empty
             raise EmptyQueue
 
         if not player.is_connected:
-            await ctx.send(":zzz: 沒有播放中的曲目，或未連接至語音頻道。")
+            await ctx.send(":zzz: 未連接至語音頻道。")
             return
 
         # prepare the queue. load the full queue and slice them into 10 items per sublist
@@ -373,8 +369,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                                                     track.title,
                                                                     int(length / 60),
                                                                     int(length % 60))
-            if index == player.queue.getPosition():
-                trackInfo = f'**► {trackInfo}**'
+            if index == player.queue.getPosition() and player.is_playing:
+                trackInfo = f'**{trackInfo}**'
 
             fullList.append(trackInfo)
             listDuration += length
@@ -431,19 +427,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @_queue.error
     async def _queue_error(self, ctx, exception):
-        if isinstance(exception, EmptyQueue):  # yeah i decided to make a fancy embed...just to display an error message
-            player = self.get_player(ctx)
-            embed = discord.Embed(title="`--.` **－－－－－－－－**", description='--:-- / --:--')
-            embed.set_author(name="播放清單為空。", icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
-            embed.set_thumbnail(url='https://upload.wikimedia.org/wikipedia/commons/4/48/BLANK_ICON.png')
-            if player.queue.waiting_for_next:
-                embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌。')
-            else:
-                embed.set_footer(text='請使用.play指令點歌。')
-            embed.add_field(name="播放清單 (0首 • 總時長 --:-- • 頁數 - / -)",
-                            value='`--.` －－－－－－－－ **(--:--)**',
-                            inline=False)
-            await ctx.send(embed=embed)
+        if isinstance(exception, EmptyQueue):
+            await ctx.send(':u7a7a: 播放清單為空。')
 
     @commands.command(name='pause', aliases=['pa'])
     async def _pause(self, ctx):
@@ -517,13 +502,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @_previous.error
     async def _previous_error(self, ctx, exception):
         player = self.get_player(ctx)
-
         if isinstance(exception, NoPrevSong):
-            await ctx.send(":warning: 到頂了喔。")
+            if player.queue.waiting_for_next:
+                await player.play(player.queue.probeForTrack(player.queue.position))
+                await ctx.send(":track_previous: 上一首！")
+                await ctx.invoke(self.bot.get_command('nowplay'))
+            else:
+                await ctx.send(":warning: 到頂了喔。")
         if isinstance(exception, EmptyQueue):
             await ctx.send(":u7a7a: 播放清單為空。")
 
-    @commands.command(name='loop', aliases=['lp', 'rp', 'repeat'])
+    @commands.command(name='loop', aliases=['lp', 'repeat'])
     async def _repeat(self, ctx):
         player = self.get_player(ctx)
         player.queue.toggleRepeat()
@@ -625,6 +614,50 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, SeekPositionOutOfBound):
             await ctx.send(":x: 指定的時間點超出歌曲範圍。")
 
+    @commands.command(name='fastforward', aliases=['ff'])
+    async def _fast_forward(self, ctx, step: int = None):
+        player = self.get_player(ctx)
+        if step:
+            pos = int(player.position / 1000) + step
+            await ctx.invoke(self.bot.get_command('seek'), pos=str(pos))
+            if step < 0:
+                msg = await ctx.send(':information_source: 下次要不要考慮試試看 **.rew**？')
+                await asyncio.sleep(1)
+                await msg.delete()
+
+    @_fast_forward.error
+    async def _fast_forward_error(self, ctx, exception):
+        if isinstance(exception, NoVC):
+            await ctx.send(':zzz: 未連接至語音頻道。')
+        if isinstance(exception, NothingIsPlaying):
+            await ctx.send(":zzz: 沒有播放中的曲目。")
+        if isinstance(exception, SeekPositionOutOfBound):
+            await ctx.send(":x: 指定的時間點超出歌曲範圍。")
+
+    @commands.command(name='rewind', aliases=['rew'])
+    async def _rewind(self, ctx, step: int = None):
+        player = self.get_player(ctx)
+        if step:
+            pos = int(player.position / 1000) - step
+            await ctx.invoke(self.bot.get_command('seek'), pos=str(pos))
+            if step < 0:
+                msg = await ctx.send(':information_source: 下次要不要考慮試試看 **.ff**？')
+                await asyncio.sleep(1)
+                await msg.delete()
+
+    @_rewind.error
+    async def _rewind_error(self, ctx, exception):
+        if isinstance(exception, NoVC):
+            await ctx.send(':zzz: 未連接至語音頻道。')
+        if isinstance(exception, NothingIsPlaying):
+            await ctx.send(":zzz: 沒有播放中的曲目。")
+        if isinstance(exception, SeekPositionOutOfBound):
+            await ctx.send(":x: 指定的時間點超出歌曲範圍。")
+
+    @commands.command(name='replay', aliases=['rp'])  # shorthand to '.seek 0'
+    async def _replay(self, ctx):
+        await ctx.invoke(self.bot.get_command('seek'), pos='0')
+
     @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
     async def _clear(self, ctx):
         player = self.get_player(ctx)
@@ -639,9 +672,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.waiting_for_next:
             player.queue.clearQueue()
             await ctx.send(':boom: 已清除播放清單。')
+            player.queue.resetPosition()
         else:
             player.queue.clearNotPlaying()
             await ctx.send(':boom: 已清除播放清單（保留當前曲目）。')
+            player.queue.resetPosition()
 
     @_clear.error
     async def _clear_error(self, ctx, exception):
@@ -657,6 +692,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         index = step
         if not player.queue.probeForTrack(index):
             raise NoTrackFoundByProbe
+
+        if player.queue.repeat_flag:
+            player.queue.toggleRepeat()
+            await ctx.send(':arrow_right: 已自動停用單曲循環播放。')
 
         player.queue.jump(index)
         await player.stop()
@@ -679,6 +718,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(':x: 無法移除播放中的曲目。')
         if isinstance(exception, NoVC):
             await ctx.send(':zzz: 未連接至語音頻道。')
+
 
 def setup(bot):
     bot.add_cog(Music(bot))
