@@ -100,7 +100,7 @@ class Queue:
     def getPlayHistory(self):
         if not self._queue:
             raise EmptyQueue
-        if self.position == 0:  # if it is at the top of the queue then return none. idk why queue[-1] doesn't throw a index out of bound??
+        if self.position == 0:  # if it is at the top of the queue then return none.
             return None
         return self._queue[self.position - 1]  # i want to only display the last song
 
