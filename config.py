@@ -3,6 +3,8 @@ import json
 '''
 This module retrieves the essentials for the bot to run, including the token, command prefix and version information
 '''
+version = ''
+
 def getToken():
 	try:
 		with open('config.json', 'r') as file:
@@ -26,14 +28,6 @@ def getPrefix():
 	return prefix
 
 def getVersion(): # TODO: come to think of it, it is stupid to store version info in config files...
-	try:
-		with open('config.json', 'r') as file:
-			configs = json.load(file)
-			version = configs["version"]
-			print("Version info loaded from config.json: {}".format(version))
-	except IOError as e:
-		version = os.environ["VERSION"]
-		print("Version info loaded from os environment variable: {}".format(version))
 	return version
 
 def getBackstage():

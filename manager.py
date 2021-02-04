@@ -15,7 +15,7 @@ This cog is for confirming the bot was logged in, and it will initialize a loop 
 class manager(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
-		self.version = config.getVersion()
+		self.version = config.getVersion()  # remember to change this
 		self.backstage = int(config.getBackstage())
 
 	@commands.Cog.listener()
@@ -23,8 +23,9 @@ class manager(commands.Cog):
 		print(strftime('Bot logged in at %Y/%m/%d, %H:%M:%S', localtime()))
 		channel = self.bot.get_channel(self.backstage)
 		await channel.send(strftime('Bot logged in at %Y/%m/%d, %H:%M:%S', localtime()))
-		await self.bot.change_presence(activity = discord.Game(self.version))
-		#db = sqlite3.connect('songlists.db') #not finished yet
+		await self.bot.change_presence(activity = discord.Game(f'SUICA {self.version}'))
+		# db = sqlite3.connect('songlists.db')  # not finished yet
+		print(f'Version: {self.version}')
 		print("Ready.")
 
 	@commands.Cog.listener()
