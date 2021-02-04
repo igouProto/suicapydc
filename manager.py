@@ -23,7 +23,7 @@ class manager(commands.Cog):
 		print(strftime('Bot logged in at %Y/%m/%d, %H:%M:%S', localtime()))
 		channel = self.bot.get_channel(self.backstage)
 		await channel.send(strftime('Bot logged in at %Y/%m/%d, %H:%M:%S', localtime()))
-		await self.bot.change_presence(activity = discord.Game(f'SUICA {self.version}'))
+		await self.bot.change_presence(activity=discord.Game(f'SUICA {self.version}'))
 		# db = sqlite3.connect('songlists.db')  # not finished yet
 		print(f'Version: {self.version}')
 		print("Ready.")
@@ -31,8 +31,8 @@ class manager(commands.Cog):
 	@commands.Cog.listener()
 	async def on_command_error(self, ctx, error):
 		if isinstance(error, CommandNotFound):
-			# if ctx.message.toString.count('.') >= 2:
-			# 	pass
+			if ctx.message.content.count('.') >= 2:
+				return
 			embed = discord.Embed(title=':x: 糟了個糕。', colour=0xff0000)
 			embed.description = "你好像打錯字囉。"
 			embed.set_footer(text=error)
