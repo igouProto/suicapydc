@@ -86,7 +86,7 @@ class Queue:
         else:
             self.position += 1
             if self.position > len(self._queue) - 1:
-                print("reached end of queue.")
+                # print("reached end of queue.")
                 self.waiting_for_next = True
                 self.position -= 1  # move one step back so that the next track can be retrieved when the session is resumed
                 return None
@@ -251,15 +251,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @_summon.error
     async def _summon_error(self, ctx, exception):
         if isinstance(exception, AlreadyConnected):
-            await ctx.send("我已經加入語音頻道囉？")
+            await ctx.send(":question: 我已經加入語音頻道囉？")
         elif isinstance(exception, NoVC):
-            await ctx.send("窩不知道你在哪裡QQ")
+            await ctx.send(":question: 窩不知道你在哪裡QQ")
 
     @commands.command(name='disconnect', aliases=['dc'])
     async def _disconnect(self, ctx):
         player = self.get_player(ctx)
         await player.teardown()
-        # await ctx.send(":boom: 已清除播放清單。")
+        if player.queue.getLength > 1:
+            await ctx.send(":boom: 已清除播放清單。")
         await ctx.send(":arrow_left: 已解除連接。")
 
     @commands.command(name='play', aliases=['p'])
@@ -310,6 +311,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await ctx.send(embed=embed)
 
+    @_play.error
+    async def _play_error(self, ctx, exception):
+        if isinstance(exception, NoVC):
+            await ctx.send(":question: 窩不知道你在哪裡QQ")
+
     @commands.command(name='nowplay', aliases=['np'])
     async def _nowplay(self, ctx):
         player = self.get_player(ctx)
@@ -328,13 +334,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         duration = "{:02d}:{:02d}".format(int(length / 60), int(length % 60))
         pos = "{:02d}:{:02d}".format(int(raw_pos / 60), int(raw_pos % 60))
 
-        progress = "{} / {}".format(pos, duration)
+        statdisp = ''
+        if player.is_paused:
+            statdisp += ' :pause_button: '
 
         if player.queue.repeat_flag:
-            progress += ' :repeat_one:'
+            statdisp += ' :repeat_one:'
 
         if player.queue.shuffle_flag:
-            progress += ' :twisted_rightwards_arrows:'
+            statdisp += ' :twisted_rightwards_arrows:'
+
+        progress = "{} {} / {}".format(statdisp, pos, duration)
 
         if player.queue.getUpcoming:
             embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition, title),
@@ -343,12 +353,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             embed = discord.Embed(title="**{}**".format(title),
                                   url=url, description=progress)
 
-        if player.is_paused:
-            embed.set_author(name="已暫停",
-                             icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
-        else:
-            embed.set_author(name="現正播放～♪",
-                             icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+        embed.set_author(name="現正播放～♪",
+                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
         if track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
@@ -414,13 +420,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         for track_info in slicedLists[page - 1]:
             queueDisp += track_info
 
-        progress = "{} / {}".format(pos, duration)
+        statdisp = ''
+        if player.is_paused:
+            statdisp += ' :pause_button: '
 
         if player.queue.repeat_flag:
-            progress += ' :repeat_one:'
+            statdisp += ' :repeat_one:'
 
         if player.queue.shuffle_flag:
-            progress += ' :twisted_rightwards_arrows:'
+            statdisp += ' :twisted_rightwards_arrows:'
+
+        progress = "{}  {} / {}".format(statdisp, pos, duration)
 
         embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition, title),
                               url=url, description=progress)
@@ -684,6 +694,15 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.command(name='replay', aliases=['rp'])  # shorthand to '.seek 0'
     async def _replay(self, ctx):
         await ctx.invoke(self.bot.get_command('seek'), pos='0')
+
+    @_replay.error
+    async def _replay_error(self, ctx, exception):
+        if isinstance(exception, NoVC):
+            await ctx.send(':zzz: 未連接至語音頻道。')
+        if isinstance(exception, NothingIsPlaying):
+            await ctx.send(":zzz: 沒有播放中的曲目。")
+        if isinstance(exception, SeekPositionOutOfBound):
+            await ctx.send(":x: 指定的時間點超出歌曲範圍。")
 
     @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
     async def _clear(self, ctx):
