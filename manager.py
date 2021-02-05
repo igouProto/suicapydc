@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-import asyncio
 from time import gmtime, strftime, localtime
 import config
 import sqlite3  # this is for the db function
@@ -15,8 +14,10 @@ This cog is for confirming the bot was logged in, and it will initialize a loop 
 class manager(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
-		self.version = config.getVersion()  # remember to change this
+		self.version = config.getVersion()
 		self.backstage = int(config.getBackstage())
+
+		self.debug = False
 
 	@commands.Cog.listener()
 	async def on_ready(self):
@@ -40,7 +41,18 @@ class manager(commands.Cog):
 		if isinstance(error, commands.CheckFailure):
 			await ctx.send(':x:權限不足或操作人員非應用程式擁有者。')
 		else:
-			raise error
+			if self.debug:
+				raise error
+
+	@commands.is_owner()
+	@commands.command(name='debug')  # i want to keep my terminal clean
+	async def _debug(self, ctx):
+		if self.debug:
+			self.debug = False
+			await ctx.send('偵錯模式已關閉。')
+		else:
+			self.debug = True
+			await ctx.send('偵錯模式已開啟，查看後台以獲取錯誤訊息。')
 '''
 ###loop tasks to keep heroku from putting my bot to sleep## no need i moved to my own machine :D
 async def wakeup():
