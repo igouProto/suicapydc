@@ -288,7 +288,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         return embed
 
-    def queue_embed(self, ctx, page, player):
+    def queue_embed(self, ctx, page, player) -> discord.Embed:
         index = 0
         list_duration = 0
         full_list = []
@@ -353,6 +353,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed.set_footer(text=f"{formatted_queue_size} • {formatted_list_length}")
         if player.queue.waiting_for_next:
             embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌，或使用.pr / .jump指令回到上一首或指定曲目。')
+
+        embed.set_author(name=f"{self.bot.get_guild(ctx.guild.id).name} 的播放清單～♪",
+                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
         return embed
 
@@ -512,8 +515,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             page = math.floor(int(player.queue.getPosition) / 10) + 1
 
         embed = self.queue_embed(ctx=ctx, page=page, player=player)
-        embed.set_author(name=f"{self.bot.get_guild(ctx.guild.id).name} 的播放清單～♪",
-                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
         queue_display = await ctx.send(embed=embed)
 
         if math.ceil(player.queue.getLength / 10) > 1:  # display interactive buttons only when there's more than 1 page
