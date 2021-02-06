@@ -594,8 +594,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         msg = await ctx.send(":track_next: 跳過！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
-        await asyncio.sleep(1)
-        await msg.delete()
 
     @_skip.error
     async def _skip_error(self, ctx, exception):
@@ -628,9 +626,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         msg = await ctx.send(":track_previous: 上一首！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
-
-        await asyncio.sleep(1)
-        await msg.delete()
 
     @_previous.error
     async def _previous_error(self, ctx, exception):
