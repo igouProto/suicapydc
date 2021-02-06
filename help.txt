@@ -18,8 +18,9 @@
 使用範例：`.play https://youtu.be/_KTwDH_KQ_g`, `.play ぺこらんだむぶれいん！`
 也可以新增播放清單（例：`.play https://www.youtube.com/playlist?list=PL9jli3ZqRhJD13ORC2CUTEYnjeZt9KMPb`）。
 
-**.queue** (.q)：查看播放清單。在指令後方輸入頁碼即可翻頁（例：`.queue 2`）。
 **.nowplay** (.np)：顯示播放中的歌曲資訊。
+**.queue** (.q)：查看播放清單。在指令後方輸入頁碼即可翻頁（例：`.queue 2`）。
+**新功能！**queue 指令現在也可以用清單下方的按鈕翻頁（如果清單多於一頁（10首））。
 
 **.skip** (.sk)：下一首。
 **.prev** (.pr)：上一首。
@@ -41,5 +42,5 @@
 
 **.save** (.s)：將當前播放中的歌曲資訊儲存到私訊。
 
-`說明書版本 v2.2,0, 210205`
+`說明書版本 v2.3.0`
 
