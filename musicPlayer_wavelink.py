@@ -4,6 +4,7 @@
 import asyncio
 import math
 import random
+import datetime
 import typing as t
 import wavelink
 import discord
@@ -229,6 +230,133 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         elif isinstance(obj, discord.Guild):
             return self.bot.wavelink.get_player(obj.id, cls=WavePlayer)
 
+    #  info embed builders
+    def nowplay_embed(self, ctx, player) -> discord.Embed:
+        track = player.current
+        if not track:
+            raise NothingIsPlaying
+
+        title = track.title
+        length = track.info['length'] / 1000
+        url = track.info['uri']
+        raw_pos = player.position / 1000
+        duration = f"{int(length / 60):02d}:{int(length % 60):02d}"
+        pos = f"{int(raw_pos / 60):02d}:{int(raw_pos % 60):02d}"
+
+        statdisp = ''  # the space for the status indicators (pause, loop, shuffle buttons)
+        if player.is_paused:
+            statdisp += ' :pause_button: '
+
+        if player.queue.repeat_flag:
+            statdisp += ' :repeat_one:'
+
+        if player.queue.shuffle_flag:
+            statdisp += ' :twisted_rightwards_arrows:'
+
+        progress = f"{statdisp} {pos} / {duration}"
+
+        if player.queue.getUpcoming:
+            embed = discord.Embed(title=f"`{player.queue.getPosition:02d}.` **{title}**",
+                                  url=url, description=progress)
+        else:
+            embed = discord.Embed(title=f"**{title}**",
+                                  url=url, description=progress)
+
+        embed.set_author(name="現正播放～♪",
+                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+
+        if track.thumb is not None:
+            embed.set_thumbnail(url=track.thumb)
+
+        return embed
+
+    def new_song_embed(self, ctx, track) -> discord.Embed:
+        title = track.title
+        length = track.info['length'] / 1000
+        author = track.info['author']
+        url = track.info['uri']
+
+        embed = discord.Embed(title=f"{title}", url=url)
+        embed.add_field(name='上傳頻道', value=author)
+        raw_duration = length
+        duration = f"{int(raw_duration / 60):02d}:{int(raw_duration % 60):02d}"
+        embed.add_field(name='時長', value=duration, inline=True)
+        embed.set_author(name=f"{ctx.author.display_name} 已將歌曲加入播放清單～♪", icon_url=ctx.author.avatar_url)
+
+        if track.thumb is not None:
+            embed.set_thumbnail(url=track.thumb)
+
+        return embed
+
+    def queue_embed(self, ctx, page, player):
+        index = 0
+        list_duration = 0
+        full_list = []
+        sliced_lists = []
+        for track in player.queue.getFullQueue:
+            length = int(track.info['length'] / 1000)
+            track_info = f"`{index:02d}.` {track.title} `({int(length / 60):02d}:{int(length % 60):02d})`\n"
+            if index == player.queue.getPosition and player.is_playing:
+                track_info = f"**[{track_info}]({track.info['uri']})**"
+            full_list.append(track_info)
+            list_duration += length
+            index += 1
+        sliced_lists = [full_list[i: i + 10] for i in range(0, len(full_list), 10)]  # 10 item per sub list
+
+        # prepare for the info queue
+        track = player.current  # get the current plyting track
+        if not track:  # if nothing is playing and the player is waiting
+            track = player.queue.probeForTrack(player.queue.getPosition)  # get the last played song
+
+        title = track.title
+        length = track.info['length'] / 1000
+        url = track.info['uri']
+        raw_pos = player.position / 1000
+        duration = f"{int(length / 60):02d}:{int(length % 60):02d}"
+        pos = f"{int(raw_pos / 60):02d}:{int(raw_pos % 60):02d}"
+        thumb = track.thumb
+
+        # display specific page of sliced list
+        queue_disp = ''
+        for track_info in sliced_lists[page - 1]:
+            queue_disp += track_info
+
+        stat_disp = ''
+        if player.is_paused:
+            stat_disp += ' :pause_button: '
+
+        if player.queue.repeat_flag:
+            stat_disp += ' :repeat_one:'
+
+        if player.queue.shuffle_flag:
+            stat_disp += ' :twisted_rightwards_arrows:'
+
+        progress = f"{stat_disp}  {pos} / {duration}"
+
+        embed = discord.Embed(title=f"`{player.queue.getPosition:02d}.` **{title}**",
+                              url=url, description=progress)
+
+        formatted_queue_size = f"{player.queue.getLength} 首"
+        if list_duration < 3600:
+            formatted_list_length = f"總時長 {int(list_duration / 60):02d}:{int(list_duration % 60):02d}"
+        else:
+            formatted_list_length = f"總時長 {datetime.timedelta(seconds=list_duration)}"
+
+        formatted_page_indicator = f'頁數 {page} / {len(sliced_lists)}'
+
+        embed.add_field(name=f"播放清單 ({formatted_page_indicator})",
+                        value=queue_disp, inline=False)
+
+        if thumb is not None:
+            embed.set_thumbnail(url=thumb)
+
+        embed.set_footer(text=f"{formatted_queue_size} • {formatted_list_length}")
+        if player.queue.waiting_for_next:
+            embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌，或使用.pr / .jump指令回到上一首或指定曲目。')
+
+        return embed
+
+
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
         print("Lavalink is ready!")
@@ -246,7 +374,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _summon(self, ctx, *, channel: t.Optional[discord.VoiceChannel]):
         player = self.get_player(ctx)
         channel = await player.connect(ctx, channel)
-        await ctx.send(":white_check_mark: 已加入語音頻道**{}**。".format(channel.name))
+        await ctx.send(f":white_check_mark: 已加入語音頻道**{channel.name}**。")
 
     @_summon.error
     async def _summon_error(self, ctx, exception):
@@ -271,7 +399,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await ctx.send(":mag_right: 正在搜尋`{}`...".format(query))
         await ctx.trigger_typing()
-        #  TODO: Try regex match, perhaps??
+        #  pre-process the query string  TODO: Try regex match, perhaps??
         if 'https://' not in query:
             query = f'ytsearch:{query}'  # treat non-url queries as youtube search
 
@@ -279,36 +407,22 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             query = query.split('&')[0]  # strips away playlist and other stuff from url (arbitrarily)
             await ctx.send(':information_source: 如要新增播放清單，請在 play 指令後方貼上清單網址。')
 
+        #  get the tracks and add to the player queue
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
             await ctx.send(':x: 搜尋結果為空。')
             if '/playlist?' in query:
                 await ctx.send(':warning: 此清單可能為私人清單，請檢查播放清單檢視權限。')
-
         await player.addTrack(ctx=ctx, tracks=tracks)
 
-        # the info embed
+        # get the track info to be displayed
         if '/playlist?' in query:  # if user stuffed a playlist
-            track = player.current  # display the current song (cuz i can't directly access TrackPlayList, hmm)
+            track = tracks.tracks[0]
             await ctx.send(':white_check_mark: 已成功新增播放清單。輸入 **.queue** 以查看。')
         else:
             track = tracks[0]
-        title = track.title
-        length = track.info['length'] / 1000
-        author = track.info['author']
-        url = track.info['uri']
-        embed = discord.Embed(title=f"{title}", url=url)
-        embed.add_field(name='上傳頻道', value=author)
-        raw_duration = length
-        duration = "{:02d}:{:02d}".format(int(raw_duration / 60), int(raw_duration % 60))
-        embed.add_field(name='時長', value=duration, inline=True)
-        # if player.queue.getUpcoming():
-        #     embed.add_field(name='播放順位', value=(player.queue.getLength() - 1 - player.queue.position), inline=True)
-        embed.set_author(name="{} 已將歌曲加入播放清單～♪".format(ctx.author.display_name), icon_url=ctx.author.avatar_url)
 
-        if track.thumb is not None:
-            embed.set_thumbnail(url=track.thumb)
-
+        embed = self.new_song_embed(ctx=ctx, track=track)
         await ctx.send(embed=embed)
 
     @_play.error
@@ -319,48 +433,60 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.command(name='nowplay', aliases=['np'])
     async def _nowplay(self, ctx):
         player = self.get_player(ctx)
-
         if not player.is_connected:
             raise NoVC
 
-        track = player.current
-        if not track:
-            raise NothingIsPlaying
+        embed = self.nowplay_embed(ctx=ctx, player=player)
+        nowplay = await ctx.send(embed=embed)
 
-        title = track.title
-        length = track.info['length'] / 1000
-        url = track.info['uri']
-        raw_pos = player.position / 1000
-        duration = "{:02d}:{:02d}".format(int(length / 60), int(length % 60))
-        pos = "{:02d}:{:02d}".format(int(raw_pos / 60), int(raw_pos % 60))
+        #  interactive buttons (To be finished...)
+        '''
+        await nowplay.add_reaction('⏮')
+        await nowplay.add_reaction('⏯️')
+        await nowplay.add_reaction('⏭️')
+        await nowplay.add_reaction('🔂')
+        await nowplay.add_reaction('🔀')
 
-        statdisp = ''
-        if player.is_paused:
-            statdisp += ' :pause_button: '
+        def check(reaction, user):
+            return user == ctx.author
 
-        if player.queue.repeat_flag:
-            statdisp += ' :repeat_one:'
-
-        if player.queue.shuffle_flag:
-            statdisp += ' :twisted_rightwards_arrows:'
-
-        progress = "{} {} / {}".format(statdisp, pos, duration)
-
-        if player.queue.getUpcoming:
-            embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition, title),
-                                  url=url, description=progress)
-        else:
-            embed = discord.Embed(title="**{}**".format(title),
-                                  url=url, description=progress)
-
-        embed.set_author(name="現正播放～♪",
-                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
-
-        if track.thumb is not None:
-            embed.set_thumbnail(url=track.thumb)
-
-        await ctx.send(embed=embed)
-        # print(f"pos: {player.queue.position}")
+        reaction = None
+        while True:
+            if str(reaction) == '⏮':
+                if player.queue.position > 0:
+                    if player.queue.repeat_flag:
+                        player.queue.repeat_flag = False
+                    await player.stop()
+                    new_player = self.get_player(ctx)
+                    await asyncio.sleep(0.5)
+                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
+            elif str(reaction) == '⏯️':
+                if player.is_paused:
+                    await player.set_pause(False)
+                else:
+                    await player.set_pause(True)
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif str(reaction) == '⏭️':
+                if player.queue.repeat_flag:
+                    player.queue.repeat_flag = False
+                await player.stop()
+                new_player = self.get_player(ctx)
+                await asyncio.sleep(0.5)
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
+            elif str(reaction) == '🔂':
+                player.queue.toggleRepeat()
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif str(reaction) == '🔀':
+                player.queue.toggleShuffle()
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            try:
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=30, check=check)  # close the buttons after 30 secs
+                await nowplay.remove_reaction(reaction, user)
+                print(str(reaction))
+            except:
+                break
+        await nowplay.clear_reactions()
+        '''
 
     @_nowplay.error
     async def _nowplay_error(self, ctx, exception):
@@ -380,79 +506,53 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":zzz: 未連接至語音頻道。")
             return
 
-        # prepare the queue. load the full queue and slice them into 10 items per sublist
-        index = 0
-        listDuration = 0
-        fullList = []
-        slicedLists = []
-        for track in player.queue.getFullQueue:
-            length = int(track.info['length'] / 1000)
-            track_info = "`{:02d}.` {} `({:02d}:{:02d})`\n".format(index,
-                                                                   track.title,
-                                                                   int(length / 60),
-                                                                   int(length % 60))
-            if index == player.queue.getPosition and player.is_playing:
-                track_info = "**[{}]({})**".format(track_info, track.info['uri'])
-            fullList.append(track_info)
-            listDuration += length
-            index += 1
-        slicedLists = [fullList[i: i + 10] for i in range(0, len(fullList), 10)]  # 10 item per sub list
-
-        if not page or page <= 0 or page > len(slicedLists):
-            # automatically jump to the page where the current playing track is in,
+        if not page or page <= 0 or page > math.ceil(player.queue.getLength / 10):
             # if no pg num is indicated, or pg num is invalid (i.e. -1 or out of bounds)
+            # then automatically jump to the page where the current playing track is in,
             page = math.floor(int(player.queue.getPosition) / 10) + 1
 
-        # prepare for the info queue
-        track = player.current
-        if not track:
-            track = player.queue.probeForTrack(player.queue.getPosition)
-        title = track.title
-        length = track.info['length'] / 1000
-        url = track.info['uri']
-        raw_pos = player.position / 1000
-        duration = "{:02d}:{:02d}".format(int(length / 60), int(length % 60))
-        pos = "{:02d}:{:02d}".format(int(raw_pos / 60), int(raw_pos % 60))
-        thumb = track.thumb
-
-        # display specific page of sliced list
-        queueDisp = ''
-        for track_info in slicedLists[page - 1]:
-            queueDisp += track_info
-
-        statdisp = ''
-        if player.is_paused:
-            statdisp += ' :pause_button: '
-
-        if player.queue.repeat_flag:
-            statdisp += ' :repeat_one:'
-
-        if player.queue.shuffle_flag:
-            statdisp += ' :twisted_rightwards_arrows:'
-
-        progress = "{}  {} / {}".format(statdisp, pos, duration)
-
-        embed = discord.Embed(title="`{:02d}.` **{}**".format(player.queue.getPosition, title),
-                              url=url, description=progress)
-
-        embed.set_author(name="{} 的播放清單～♪".format(self.bot.get_guild(ctx.guild.id).name),
+        embed = self.queue_embed(ctx=ctx, page=page, player=player)
+        embed.set_author(name=f"{self.bot.get_guild(ctx.guild.id).name} 的播放清單～♪",
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+        queue_display = await ctx.send(embed=embed)
 
-        if player.queue.getFullQueue:
-            embed.add_field(name="播放清單 ({}首 • 總時長 {:02d}:{:02d} • 頁數 {} / {})".format(player.queue.getLength,
-                                                                                      int(listDuration / 60),
-                                                                                      int(listDuration % 60),
-                                                                                      page, len(slicedLists)),
-                            value=queueDisp,
-                            inline=False)
+        if math.ceil(player.queue.getLength / 10) > 1:  # display interactive buttons only when there's more than 1 page
+            # interactive buttons
+            # solution taken from: https://stackoverflow.com/questions/55075157/discord-rich-embed-buttons/65336328#65336328
+            await queue_display.add_reaction('⏪')
+            await queue_display.add_reaction('⬅️')
+            await queue_display.add_reaction('⏺️')
+            await queue_display.add_reaction('➡️')
+            await queue_display.add_reaction('⏩')
 
-        if thumb is not None:
-            embed.set_thumbnail(url=thumb)
+            def check(reaction, user):
+                return user == ctx.author
 
-        if player.queue.waiting_for_next:
-            embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌，或使用.pr / .jump指令回到上一首或指定曲目。')
-
-        await ctx.send(embed=embed)
+            reaction = None
+            while True:
+                if str(reaction) == '⏪':
+                    page = 1
+                    await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                elif str(reaction) == '⬅️':
+                    if page > 1:
+                        page -= 1
+                        await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                elif str(reaction) == '⏺️':
+                    page = math.floor(int(player.queue.getPosition) / 10) + 1
+                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+                elif str(reaction) == '➡️':
+                    if page < math.ceil(player.queue.getLength / 10):
+                        page += 1
+                        await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                elif str(reaction) == '⏩':
+                    page = math.ceil(player.queue.getLength / 10)
+                    await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                try:
+                    reaction, user = await self.bot.wait_for('reaction_add', timeout=30, check=check)  # close the buttons after 30 secs
+                    await queue_display.remove_reaction(reaction, user)
+                except:
+                    break
+            await queue_display.clear_reactions()
 
     @_queue.error
     async def _queue_error(self, ctx, exception):
@@ -491,9 +591,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             raise NoMoreSongs
 
         await player.stop()
-        await ctx.send(":track_next: 跳過！")
+        msg = await ctx.send(":track_next: 跳過！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
+        await asyncio.sleep(1)
+        await msg.delete()
 
     @_skip.error
     async def _skip_error(self, ctx, exception):
@@ -523,9 +625,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
             player.queue.position -= 2  # step back 2 steps first
             await player.stop()  # then let it advance 1 step
-        await ctx.send(":track_previous: 上一首！")
+        msg = await ctx.send(":track_previous: 上一首！")
 
         await ctx.invoke(self.bot.get_command('nowplay'))
+
+        await asyncio.sleep(1)
+        await msg.delete()
 
     @_previous.error
     async def _previous_error(self, ctx, exception):
@@ -573,8 +678,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         track = player.queue.probeForTrack(index)
         player.queue.remove(index)
-        await ctx.send(f':white_check_mark: 已從播放清單移除 **{track.title}**。')
-        await ctx.invoke(self.bot.get_command('queue'))
+        await ctx.send(f':white_check_mark: 已從播放清單移除 **{track.title}**。輸入 **.queue** 以查看清單。')
+        # await ctx.invoke(self.bot.get_command('queue'))
 
     @_remove.error
     async def _remove_error(self, ctx, exception):
@@ -596,18 +701,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             return
 
         track = player.current
-
         if not track:
             await ctx.send(":zzz: 沒有播放中的曲目。")
             return
 
         title = track.title
-        length = track.info['length'] / 1000
         url = track.info['uri']
-        duration = "{:02d}:{:02d}".format(int(length / 60), int(length % 60))
-
-        embed = discord.Embed(title="**{}**".format(title),
-                              url=url, description="{}".format(url))
+        embed = discord.Embed(title=f"**{title}**",
+                              url=url, description=f"{url}")
         embed.set_author(name="早安啊，這是你剛剛存下來的曲子♪", icon_url=self.bot.user.avatar_url)
 
         if track.thumb is not None:
@@ -639,7 +740,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
             seekDisp = int(seek / 1000)
             await player.seek(position=seek)
-            await ctx.send(':fast_forward: 已跳轉至 **{:02d}:{:02d}**'.format(int(seekDisp / 60), seekDisp % 60))
+            await ctx.send(f':fast_forward: 已跳轉至 **{int(seekDisp / 60):02d}:{seekDisp % 60:02d}**')
             await ctx.invoke(self.bot.get_command('nowplay'))
 
     @_seek.error
@@ -718,6 +819,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.waiting_for_next:
             player.queue.clearQueue()
             await ctx.send(':boom: 已清除播放清單。')
+            player.queue.position = -1
         else:
             player.queue.clearNotPlaying()
             await ctx.send(':boom: 已清除播放清單（保留當前曲目）。')
