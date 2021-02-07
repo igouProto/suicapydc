@@ -157,6 +157,7 @@ class WavePlayer(wavelink.Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
+        self.active_music_controllers = {}
 
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
         if self.is_connected:
@@ -211,6 +212,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             self.bot.wavelink = wavelink.Client(bot=self.bot)
 
         self.bot.loop.create_task(self.start_nodes())
+
 
     async def start_nodes(self):  # connect to a lavalink node
         await self.bot.wait_until_ready()
@@ -426,14 +428,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             track = tracks[0]
 
         embed = self.new_song_embed(ctx=ctx, track=track)
-        await ctx.send(embed=embed)
+        msg = await ctx.send(embed=embed)
 
     @_play.error
     async def _play_error(self, ctx, exception):
         if isinstance(exception, NoVC):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
 
-    @commands.command(name='nowplay', aliases=['np'])
+    @commands.command(name='nowplay', aliases=['np'])  # now with interactive controller, yay
     async def _nowplay(self, ctx):
         player = self.get_player(ctx)
         if not player.is_connected:
@@ -442,8 +444,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed = self.nowplay_embed(ctx=ctx, player=player)
         nowplay = await ctx.send(embed=embed)
 
-        #  interactive buttons (To be finished...)
-        '''
+        try:
+            if player.active_music_controllers[f'{ctx.author}']:
+                del player.active_music_controllers[f'{ctx.author}']
+        except:
+            pass
+        player.active_music_controllers[f'{ctx.author}'] = nowplay.id
+        # add to the dict containing all the active controllers
+        # only the latest one will be valid
+
+        #  interactive buttons
+        await nowplay.add_reaction('🔄')
         await nowplay.add_reaction('⏮')
         await nowplay.add_reaction('⏯️')
         await nowplay.add_reaction('⏭️')
@@ -451,14 +462,20 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await nowplay.add_reaction('🔀')
 
         def check(reaction, user):
-            return user == ctx.author
+            if user.bot:
+                return False
+            if reaction.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
+                return False
+            else:
+                return True
 
         reaction = None
-        while True:
+        while nowplay.id in player.active_music_controllers.values():
             if str(reaction) == '⏮':
                 if player.queue.position > 0:
                     if player.queue.repeat_flag:
                         player.queue.repeat_flag = False
+                    player.queue.position -= 2
                     await player.stop()
                     new_player = self.get_player(ctx)
                     await asyncio.sleep(0.5)
@@ -482,14 +499,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             elif str(reaction) == '🔀':
                 player.queue.toggleShuffle()
                 await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif str(reaction) == '🔄':
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
             try:
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=30, check=check)  # close the buttons after 30 secs
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=600, check=check)  # close the controller after 10 minutes
                 await nowplay.remove_reaction(reaction, user)
-                print(str(reaction))
             except:
                 break
         await nowplay.clear_reactions()
-        '''
+        embed = self.nowplay_embed(ctx=ctx, player=player)
+        embed.set_footer(text='按鈕已隱藏。如需使用按鈕，請使用 .np 叫出新的操作面板。')
+        await nowplay.edit(embed=embed)
+        # await nowplay.delete()
+        # await ctx.message.delete()
 
     @_nowplay.error
     async def _nowplay_error(self, ctx, exception):
@@ -527,7 +549,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await queue_display.add_reaction('⏩')
 
             def check(reaction, user):
-                return user == ctx.author
+                if user.bot:
+                    return False
+                if reaction.message.guild.id != ctx.message.guild.id:
+                    return False
+                else:
+                    return True
 
             reaction = None
             while True:
@@ -549,7 +576,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     page = math.ceil(player.queue.getLength / 10)
                     await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
                 try:
-                    reaction, user = await self.bot.wait_for('reaction_add', timeout=30, check=check)  # close the buttons after 30 secs
+                    reaction, user = await self.bot.wait_for('reaction_add', timeout=20, check=check)  # close the buttons after 30 secs
                     await queue_display.remove_reaction(reaction, user)
                 except:
                     break
@@ -568,18 +595,27 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             raise PlayerAlreadyPaused
 
         await player.set_pause(True)
-        await ctx.send(":pause_button: 暫停！")
+        msg = await ctx.send(":pause_button: 暫停！")
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
 
     @_pause.error
     async def _pause_error(self, ctx, exception):
         if isinstance(exception, PlayerAlreadyPaused):
-            await ctx.send(":pause_button: 已經暫停了。")
+            msg = await ctx.send(":pause_button: 已經暫停了。")
+            await asyncio.sleep(2)
+            await msg.delete()
+            await ctx.message.delete()
 
     @commands.command(name='resume', aliases=['re'])
     async def _resume(self, ctx):
         player = self.get_player(ctx)
         await player.set_pause(False)
-        await ctx.send(":arrow_forward: 繼續！")
+        msg = await ctx.send(":arrow_forward: 繼續！")
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
 
     @commands.command(name='skip', aliases=['sk'])
     async def _skip(self, ctx):
@@ -593,8 +629,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await player.stop()
         msg = await ctx.send(":track_next: 跳過！")
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
 
-        await ctx.invoke(self.bot.get_command('nowplay'))
+        # await ctx.invoke(self.bot.get_command('nowplay'))
 
     @_skip.error
     async def _skip_error(self, ctx, exception):
@@ -625,8 +664,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player.queue.position -= 2  # step back 2 steps first
             await player.stop()  # then let it advance 1 step
         msg = await ctx.send(":track_previous: 上一首！")
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
 
-        await ctx.invoke(self.bot.get_command('nowplay'))
+        # await ctx.invoke(self.bot.get_command('nowplay'))
 
     @_previous.error
     async def _previous_error(self, ctx, exception):
@@ -646,18 +688,24 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
         player.queue.toggleRepeat()
         if player.queue.repeat_flag:
-            await ctx.send(':repeat_one: 單曲循環播放已啟用。')
+            msg = await ctx.send(':repeat_one: 單曲循環播放已啟用。')
         else:
-            await ctx.send(':arrow_right: 單曲循環播放已停用。')
+            msg = await ctx.send(':arrow_right: 單曲循環播放已停用。')
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
 
     @commands.command(name='shuffle', aliases=['shuf', 'sh'])
     async def _shuffle(self, ctx):
         player = self.get_player(ctx)
         player.queue.toggleShuffle()
         if player.queue.shuffle_flag:
-            await ctx.send(':twisted_rightwards_arrows: 隨機播放已啟用。')
+            msg = await ctx.send(':twisted_rightwards_arrows: 隨機播放已啟用。')
         else:
-            await ctx.send(':arrow_right: 隨機播放已停用。')
+            msg = await ctx.send(':arrow_right: 隨機播放已停用。')
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
 
     @commands.command(name='remove', aliases=['rm'])
     async def _remove(self, ctx, index: int):
@@ -736,8 +784,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
             seekDisp = int(seek / 1000)
             await player.seek(position=seek)
-            await ctx.send(f':fast_forward: 已跳轉至 **{int(seekDisp / 60):02d}:{seekDisp % 60:02d}**')
-            await ctx.invoke(self.bot.get_command('nowplay'))
+            msg = await ctx.send(f':fast_forward: 已跳轉至 **{int(seekDisp / 60):02d}:{seekDisp % 60:02d}**')
+            # await ctx.invoke(self.bot.get_command('nowplay'))
+            await asyncio.sleep(2)
+            await msg.delete()
+            await ctx.message.delete()
 
     @_seek.error
     async def _seek_error(self, ctx, exception):
@@ -814,20 +865,27 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         if player.queue.waiting_for_next:
             player.queue.clearQueue()
-            await ctx.send(':boom: 已清除播放清單。')
+            msg = await ctx.send(':boom: 已清除播放清單。')
             player.queue.position = -1
         else:
             player.queue.clearNotPlaying()
-            await ctx.send(':boom: 已清除播放清單（保留當前曲目）。')
+            msg = await ctx.send(':boom: 已清除播放清單（保留當前曲目）。')
 
         if player.queue.shuffle_flag:
             player.queue.shuffle_flag = False
             await ctx.send(':arrow_right: 已自動停用隨機播放。')
 
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
+
     @_clear.error
     async def _clear_error(self, ctx, exception):
         if isinstance(exception, EmptyQueue):
             await ctx.send(":u7a7a: 播放清單為空。")
+            await asyncio.sleep(2)
+            await msg.delete()
+            await ctx.message.delete()
 
     @commands.command(name='jump', aliases=['j', 'jmp'])
     async def _jump(self, ctx, step: int):
@@ -841,7 +899,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         if player.queue.repeat_flag:
             player.queue.toggleRepeat()
-            await ctx.send(':arrow_right: 已自動停用單曲循環播放。')
+            # lp_toggle = await ctx.send(':arrow_right: 已自動停用單曲循環播放。')
 
         player.queue.jump(index)
         await player.stop()
@@ -850,9 +908,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await player.advance()  # then do an advance
             player.queue.waiting_for_next = False
 
-        await ctx.send(":track_next: 跳過！")
-
-        await ctx.invoke(self.bot.get_command('nowplay'))
+        msg = await ctx.send(":track_next: 跳過！\n:information_source: 按一下播放器下方的 🔄 更新狀態顯示。")
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
+        # await ctx.invoke(self.bot.get_command('nowplay'))
 
     @_jump.error
     async def _jump_error(self, ctx, exception):
