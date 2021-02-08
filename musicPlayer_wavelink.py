@@ -83,7 +83,7 @@ class Queue:
             raise EmptyQueue
         self.waiting_for_next = False
         if self.shuffle_flag and self.waiting_for_next is False:
-            self.position = random.randrange(0, self.getLength - 1, 1)
+            self.position = random.randint(0, self.getLength - 1)
         else:
             self.position += 1
             if self.position > len(self._queue) - 1:
@@ -466,8 +466,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 return False
             if reaction.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
                 return False
-            else:
+            elif reaction.message.guild.id == ctx.message.guild.id:
                 return True
+            else:
+                return False
 
         reaction = None
         while nowplay.id in player.active_music_controllers.values():
