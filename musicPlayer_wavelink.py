@@ -139,7 +139,7 @@ class Queue:
         self.position = 0
 
     def clearNotPlaying(self):  # clear the queue (but the current playing song)
-        del(self._queue[self.position + 1:])  # clear upcoming songs
+        del (self._queue[self.position + 1:])  # clear upcoming songs
         del (self._queue[:self.position])  # clear played songs
         self.position = 0  # reset player queue position
 
@@ -157,7 +157,7 @@ class WavePlayer(wavelink.Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
-        self.active_music_controllers = {}
+        self.active_music_controller = 0
 
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
         if self.is_connected:
@@ -213,7 +213,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         self.bot.loop.create_task(self.start_nodes())
 
-
     async def start_nodes(self):  # connect to a lavalink node
         await self.bot.wait_until_ready()
 
@@ -236,7 +235,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     def nowplay_embed(self, ctx, player) -> discord.Embed:
         track = player.current
         if not track:
-            raise NothingIsPlaying
+           raise NothingIsPlaying
 
         title = track.title
         length = track.info['length'] / 1000
@@ -361,7 +360,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         return embed
 
-
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
         print("Lavalink is ready!")
@@ -444,14 +442,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed = self.nowplay_embed(ctx=ctx, player=player)
         nowplay = await ctx.send(embed=embed)
 
-        try:
-            if player.active_music_controllers[f'{ctx.author}']:
-                del player.active_music_controllers[f'{ctx.author}']
-        except:
-            pass
-        player.active_music_controllers[f'{ctx.author}'] = nowplay.id
-        # add to the dict containing all the active controllers
-        # only the latest one will be valid
+        player.active_music_controller = nowplay.id
+        print(f"{nowplay.guild.id}:{player.active_music_controller}")
 
         #  interactive buttons
         await nowplay.add_reaction('🔄')
@@ -461,18 +453,21 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await nowplay.add_reaction('🔂')
         await nowplay.add_reaction('🔀')
 
-        def check(reaction, user):
-            if user.bot:
+        def check(react, usr):
+            if usr.bot:
                 return False
-            if reaction.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
+            if react.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
                 return False
-            elif reaction.message.guild.id == ctx.message.guild.id:
-                return True
+            elif react.message.guild.id == ctx.message.guild.id: # i want to be more precise (idk if it helps tho)
+                if react.message.id == player.active_music_controller:
+                    return True
+                else:
+                    return False
             else:
                 return False
 
         reaction = None
-        while nowplay.id in player.active_music_controllers.values():
+        while nowplay.id == player.active_music_controller:
             if str(reaction) == '⏮':
                 if player.queue.position > 0:
                     if player.queue.repeat_flag:
@@ -504,14 +499,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             elif str(reaction) == '🔄':
                 await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
             try:
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=600, check=check)  # close the controller after 10 minutes
+                reaction, user = await self.bot.wait_for('reaction_add',
+                                                         timeout=10,
+                                                         check=check)  # close the controller after being idle 10 minutes
                 await nowplay.remove_reaction(reaction, user)
-            except:
+            except:  # when in doubt, break. whatever.
                 break
         await nowplay.clear_reactions()
-        embed = self.nowplay_embed(ctx=ctx, player=player)
-        embed.set_footer(text='按鈕已隱藏。如需使用按鈕，請使用 .np 叫出新的操作面板。')
-        await nowplay.edit(embed=embed)
+        if not player.queue.waiting_for_next:
+            embed = self.nowplay_embed(ctx=ctx, player=player)
+            embed.set_footer(text='按鈕已隱藏。如需使用按鈕，請使用 .np 叫出新的操作面板。')
+            await nowplay.edit(embed=embed)
         # await nowplay.delete()
         # await ctx.message.delete()
 
@@ -562,23 +560,24 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             while True:
                 if str(reaction) == '⏪':
                     page = 1
-                    await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
                 elif str(reaction) == '⬅️':
                     if page > 1:
                         page -= 1
-                        await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                        await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
                 elif str(reaction) == '⏺️':
                     page = math.floor(int(player.queue.getPosition) / 10) + 1
                     await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
                 elif str(reaction) == '➡️':
                     if page < math.ceil(player.queue.getLength / 10):
                         page += 1
-                        await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                        await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
                 elif str(reaction) == '⏩':
                     page = math.ceil(player.queue.getLength / 10)
-                    await queue_display.edit(embed = self.queue_embed(ctx=ctx, page=page, player=player))
+                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
                 try:
-                    reaction, user = await self.bot.wait_for('reaction_add', timeout=20, check=check)  # close the buttons after 30 secs
+                    reaction, user = await self.bot.wait_for('reaction_add', timeout=20,
+                                                             check=check)  # close the buttons after 30 secs
                     await queue_display.remove_reaction(reaction, user)
                 except:
                     break
@@ -653,7 +652,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
 
         if player.queue.waiting_for_next:  # if user decided to go backward while the player is waiting
-            await(player.play(player.queue.probeForTrack(player.queue.position)))  # pick up the current song and play it again
+            await(player.play(
+                player.queue.probeForTrack(player.queue.position)))  # pick up the current song and play it again
             player.queue.waiting_for_next = False  # remember to flip this back to false, cause the player is not waiting for new song now...
         else:
             if not player.queue.getPlayHistory:
@@ -854,7 +854,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, SeekPositionOutOfBound):
             await ctx.send(":x: 指定的時間點超出歌曲範圍。")
 
-    @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
+    @commands.command(name='clear', aliases=[
+        'cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
     async def _clear(self, ctx):
         player = self.get_player(ctx)
 
