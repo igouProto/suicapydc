@@ -500,7 +500,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
             try:
                 reaction, user = await self.bot.wait_for('reaction_add',
-                                                         timeout=10,
+                                                         timeout=600,
                                                          check=check)  # close the controller after being idle 10 minutes
                 await nowplay.remove_reaction(reaction, user)
             except:  # when in doubt, break. whatever.
