@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import sys
-import psutil
+# import psutil
 
 import config
 
@@ -93,6 +93,7 @@ class adminFunctions(commands.Cog):
         self.bot.load_extension('kancolle')
         await ctx.send('完成。')
 
+    '''
     @commands.is_owner()
     @commands.command(name='status', aliases=['st'])  # system (PC) status from psutil
     async def _status(self, ctx):
@@ -116,6 +117,7 @@ class adminFunctions(commands.Cog):
         embed.add_field(name="西瓜佔用的RAM", value=f"{bot_mem:.2f}%")
 
         await ctx.send(embed=embed)
+    '''
 
 
     @commands.command(name="ping")  # ping function, used for testing the bot's respond time. Now enhanced with voice latency and embed.
