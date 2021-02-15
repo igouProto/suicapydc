@@ -269,6 +269,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
 
+        now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
+        embed.set_footer(text=f"上次更新：{now}")
+
         return embed
 
     def new_song_embed(self, ctx, track) -> discord.Embed:
@@ -508,7 +511,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await nowplay.clear_reactions()
         if not player.queue.waiting_for_next:
             embed = self.nowplay_embed(ctx=ctx, player=player)
-            embed.set_footer(text='按鈕已隱藏。如需使用按鈕，請使用 .np 叫出新的操作面板。')
+            now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
+            embed.set_footer(text=f'按鈕已隱藏。如有需要，請用 .np 叫出新的操作面板。上次更新：{now}')
             await nowplay.edit(embed=embed)
         # await nowplay.delete()
         # await ctx.message.delete()
