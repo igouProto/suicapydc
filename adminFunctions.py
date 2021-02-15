@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sys
+import psutil
 
 import config
 
@@ -91,6 +92,31 @@ class adminFunctions(commands.Cog):
         self.bot.load_extension('luckyDraws')
         self.bot.load_extension('kancolle')
         await ctx.send('完成。')
+
+    @commands.is_owner()
+    @commands.command(name='status', aliases=['st'])  # system (PC) status from psutil
+    async def _status(self, ctx):
+        pid = os.getpid()
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        cpu_freq = psutil.cpu_freq().current
+        mem = psutil.virtual_memory()
+        mem_total = mem.total / (1024*1024)  # B to MB
+        mem_used = mem.used / (1024*1024)  # B to MB
+        mem_percent = mem.percent
+
+        bot_process = psutil.Process(pid)
+        bot_cpu_percent = bot_process.cpu_percent(interval=0.1)
+        bot_mem = bot_process.memory_percent()
+
+        embed = discord.Embed(title=":clipboard: 不知道可以幹嘛但看起來很炫的系統狀態")
+        embed.add_field(name="整體CPU使用率", value=f"{cpu_percent}%")
+        embed.add_field(name="CPU頻率", value=f"{cpu_freq} MHz")
+        embed.add_field(name="整體RAM用量", value=f"{mem_percent:.2f}% ({mem_used:.2f} MB / {mem_total:.2f} MB)")
+        embed.add_field(name="西瓜佔用的CPU", value=f"{bot_cpu_percent}%")
+        embed.add_field(name="西瓜佔用的RAM", value=f"{bot_mem:.2f}%")
+
+        await ctx.send(embed=embed)
+
 
     @commands.command(name="ping")  # ping function, used for testing the bot's respond time. Now enhanced with voice latency and embed.
     async def _ping(self, ctx):
