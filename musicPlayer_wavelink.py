@@ -509,10 +509,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             except:  # when in doubt, break. whatever.
                 break
         await nowplay.clear_reactions()
-        if not player.queue.waiting_for_next:
+
+        if (not player.queue.waiting_for_next) and player.is_connected:
             embed = self.nowplay_embed(ctx=ctx, player=player)
             now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
-            embed.set_footer(text=f'按鈕已隱藏。如有需要，請用 .np 叫出新的操作面板。上次更新：{now}')
+            embed.set_footer(text=f'按鈕已隱藏，如有需要，請用 .np 叫出新的操作面板。上次更新：{now}')
             await nowplay.edit(embed=embed)
         # await nowplay.delete()
         # await ctx.message.delete()
