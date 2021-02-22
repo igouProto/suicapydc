@@ -472,7 +472,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         reaction = None
         while nowplay.id == player.active_music_controller:
             if str(reaction) == '⏮':
-                if player.queue.position > 0:
+                if player.queue.position > 0 and not player.queue.waiting_for_next:
                     if player.queue.repeat_flag:
                         player.queue.repeat_flag = False
                     player.queue.position -= 2
