@@ -40,17 +40,26 @@ def omkj_generate(id, author):
 	payIndex = random.randint(0, 10)
 	dirIndex = random.randint(0, len(directions) - 1)
 	direction = directions[dirIndex]
-	serial = f"{luck:02d}{luckNum}{colorindex:03d}{detindex:02d}{drawIndex:02d}{dirIndex:02d}{payIndex:02d}"  # a serial number just for fun
-	#the embed
+	serial = f"{seedIndex}"  # f"{luck:02d}{luckNum}{colorindex:03d}{detindex:02d}{drawIndex:02d}{dirIndex:02d}{payIndex:02d}"  # a serial number just for fun
+	# the embed
 	embed = discord.Embed(title="**{}**".format(fortune[luck]), description = str(determinations[detindex]) )
 	embed.set_author(name=f'{author.display_name} 的每日占卜結果～', icon_url = author.avatar_url)
+
 	embed.add_field(name='歐洲方位', value=directions[dirIndex], inline=True)
 	embed.add_field(name='抽卡指數', value=f'☆ {drawIndex}', inline=True)
 	embed.add_field(name='課金指數', value=f'☆ {payIndex}', inline=True)
 	embed.add_field(name='幸運數', value=str(luckNum), inline=True)
 	embed.add_field(name='幸運色', value=str(colors[colorindex]), inline=True)
+	'''
+	# alternative embed message
+	luckString = f"歐洲方位：{directions[dirIndex]}\n" \
+				 f"抽卡指數：☆ {drawIndex}\n" \
+				 f"課金指數：☆ {payIndex}\n" \
+				 f"幸運數：{luckNum}\n" \
+				 f"幸運色：{colors[colorindex]}\n"
+	embed.add_field(name="你今天的運氣指標", value=luckString)
+	'''
 	embed.set_footer(text="#{} • {}".format(serial, strftime('%Y/%m/%d', localtime())))
-
 	return embed
 
 def b3c_cal(id):
