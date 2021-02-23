@@ -168,6 +168,7 @@ class adminFunctions(commands.Cog):
     @commands.is_owner()
     @commands.command(name='update')
     async def _update(self, ctx):
+        await ctx.trigger_typing()
         result = subprocess.run(['git', 'pull'], stdout=subprocess.PIPE).stdout.decode('utf-8')
         display = (result[:1990] + '...') if len(result) >= 1990 else result
         await ctx.send(f"```{display}```")
