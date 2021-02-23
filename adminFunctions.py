@@ -1,3 +1,5 @@
+import subprocess
+
 import discord
 from discord.ext import commands
 import asyncio
@@ -162,6 +164,28 @@ class adminFunctions(commands.Cog):
                             '\n作者：igouProto [(GitHub!)](https://github.com/igouProto/suicapydc)'.format(self.botid, name, owner, borntime)
         embed.set_footer(text="{} • 使用 discord.py 及 Wavelink (播放器)".format(config.getVersion()))
         await ctx.send(embed=embed)
+
+    @commands.is_owner()
+    @commands.command(name='update')
+    async def _update(self, ctx):
+        result = subprocess.run(['git', 'pull'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+        display = (result[:1997] + '...') if len(result) >= 1997 else result
+        await ctx.send(display)
+
+    @commands.is_owner()
+    @commands.command(name='terminal', aliases=['term'])
+    async def _terminal(self, ctx, *args:str):
+        cmd = []
+        for item in args:
+            cmd.append(item)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        output = result.stdout.decode('utf-8')
+        if output:
+            display = (output[:1990] + '...') if len(output) >= 1990 else output
+            await ctx.send(f"```{display}```")
+        else:
+            if result.returncode == 0:
+                await ctx.message.add_reaction("✅")
 
 def setup(bot):
     bot.remove_command('help')  # I want my own help cmd.
