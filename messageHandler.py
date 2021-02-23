@@ -27,7 +27,7 @@ class messageHandler(commands.Cog):
             if message.author == self.bot.user:
                 return
             else:
-                print('keyword hit')
+                # print('keyword hit')
                 msg = self.response[message.content]
                 await message.channel.send(msg)
         if '呼哈' in message.content and message.author != self.bot.user:
