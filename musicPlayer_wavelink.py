@@ -55,6 +55,10 @@ class SeekPositionOutOfBound(commands.CommandError):
     pass
 
 
+class AttemptedToSkipOutOfBounds(commands.CommandError):
+    pass
+
+
 class Queue:
     def __init__(self):
         self._queue = []
@@ -427,9 +431,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(':white_check_mark: 已成功新增播放清單。輸入 **.queue** 以查看。')
         else:
             track = tracks[0]
-
-        embed = self.new_song_embed(ctx=ctx, track=track)
-        msg = await ctx.send(embed=embed)
+            embed = self.new_song_embed(ctx=ctx, track=track)
+            msg = await ctx.send(embed=embed)
 
     @_play.error
     async def _play_error(self, ctx, exception):
@@ -624,7 +627,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await ctx.message.delete()
 
     @commands.command(name='skip', aliases=['sk'])
-    async def _skip(self, ctx):
+    async def _skip(self, ctx, step:int=None):
         player = self.get_player(ctx)
         if player.queue.repeat_flag:
             player.queue.toggleRepeat()
@@ -632,6 +635,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         if not player.queue.getUpcoming:
             raise NoMoreSongs
+
+        if step:
+            if player.queue.position + step > player.queue.getLength:
+                raise AttemptedToSkipOutOfBounds
+            else:
+                player.queue.position += (step - 1)
 
         await player.stop()
         msg = await ctx.send(":track_next: 跳過！")
@@ -651,6 +660,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":warning: 沒歌了喔。")
         if isinstance(exception, EmptyQueue):
             await ctx.send(":information_source: 播放清單為空。")
+        if isinstance(exception, AttemptedToSkipOutOfBounds):
+            await ctx.send(":warning: 超出播放清單範圍。")
 
     @commands.command(name='previous', aliases=['pr', 'prev'])
     async def _previous(self, ctx):
@@ -890,7 +901,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @_clear.error
     async def _clear_error(self, ctx, exception):
         if isinstance(exception, EmptyQueue):
-            await ctx.send(":u7a7a: 播放清單為空。")
+            msg = await ctx.send(":u7a7a: 播放清單為空。")
             await asyncio.sleep(2)
             await msg.delete()
             await ctx.message.delete()
