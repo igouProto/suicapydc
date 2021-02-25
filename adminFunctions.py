@@ -172,10 +172,11 @@ class adminFunctions(commands.Cog):
         result = subprocess.run(['git', 'pull'], stdout=subprocess.PIPE).stdout.decode('utf-8')
         display = (result[:1990] + '...') if len(result) >= 1990 else result
         await ctx.send(f"```{display}```")
+        await ctx.invoke(self.bot.get_command('restart'))
 
     @commands.is_owner()
     @commands.command(name='terminal', aliases=['term'])
-    async def _terminal(self, ctx, *args:str):
+    async def _terminal(self, ctx, *args: str):
         cmd = []
         for item in args:
             cmd.append(item)
