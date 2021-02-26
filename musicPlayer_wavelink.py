@@ -518,6 +518,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
             embed.set_footer(text=f'按鈕已隱藏，如有需要，請用 .np 叫出新的操作面板。上次更新：{now}')
             await nowplay.edit(embed=embed)
+            player.active_music_controller = 0
         # await nowplay.delete()
         # await ctx.message.delete()
 
@@ -643,7 +644,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 player.queue.position += (step - 1)
 
         await player.stop()
-        msg = await ctx.send(":track_next: 跳過！")
+        info = ":track_next: 跳過！"
+        if player.active_music_controller != 0:
+            info += "\n:information_source: 按一下播放器下方的 🔄 更新狀態顯示。"
+        msg = await ctx.send(info)
         await asyncio.sleep(2)
         await msg.delete()
         await ctx.message.delete()
@@ -927,7 +931,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await player.advance()  # then do an advance
             player.queue.waiting_for_next = False
 
-        msg = await ctx.send(":track_next: 跳過！\n:information_source: 按一下播放器下方的 🔄 更新狀態顯示。")
+        msg = await ctx.send(":track_next: 跳過！\n")
+        if player.active_music_controller != 0:
+            await ctx.send(":information_source: 按一下播放器下方的 🔄 更新狀態顯示。")
         await asyncio.sleep(5)
         await msg.delete()
         await ctx.message.delete()
@@ -943,6 +949,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(':x: 無法移除播放中的曲目。')
         if isinstance(exception, NoVC):
             await ctx.send(':zzz: 未連接至語音頻道。')
+
+    @commands.command(name='volume', aliases=['vol'])
+    async def _volume(self, ctx, vol: int=None):
+        player = self.get_player(ctx)
+        if vol:
+            if vol > 100 or vol < 0:
+                vol = 100
+            await player.set_volume(vol)
+        msg = await ctx.send(f"音量調整：**{player.volume}%**")
+        await asyncio.sleep(1)
+        await msg.delete()
+        await ctx.message.delete()
+
 
 
 def setup(bot):
