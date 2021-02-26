@@ -41,7 +41,7 @@ class manager(commands.Cog):
 			await ctx.message.add_reaction("❓")
 		if isinstance(error, commands.CheckFailure):
 			# await ctx.send(':x:權限不足或操作人員非應用程式擁有者。')
-			await ctx.message.add_reaction("❌")
+			await ctx.message.add_reaction("⛔")
 		else:
 			if self.debug:
 				raise error
