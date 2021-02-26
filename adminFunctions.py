@@ -60,6 +60,20 @@ class adminFunctions(commands.Cog):
                 ctx.send("無法讀取公告頻道清單。")
 
     @commands.is_owner()
+    @commands.command(name='update-manual', aliases=['upm'])
+    async def _update_help(self, ctx):
+        manual = open('help.txt', 'r')
+        msg = manual.read()
+        manual.close()
+        with open('announce_channels.json') as file:
+            messages = json.load(file)
+            messages_list = messages["manual-ids"]
+            for each in messages_list:
+                manual = await ctx.fetch_message(each)
+                await manual.edit(content=msg)
+
+
+    @commands.is_owner()
     @commands.command(name="purge")  # batch-deletes messages
     async def _purge(self, ctx, amount: int):
         await ctx.message.channel.purge(limit=amount)
