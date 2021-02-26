@@ -80,19 +80,12 @@ class adminFunctions(commands.Cog):
     @commands.is_owner()
     @commands.command(name='reload', aliases=['rl']) # reloads all the extensions
     async def _reload(self, ctx):
-        self.bot.unload_extension('manager')
-        self.bot.unload_extension('adminFunctions')
-        self.bot.unload_extension('messageHandler')
-        self.bot.unload_extension('musicPlayer_wavelink')
-        self.bot.unload_extension('luckyDraws')
-        self.bot.unload_extension('kancolle')
-        await ctx.send('重新載入所有模組...')
-        self.bot.load_extension('manager')
-        self.bot.load_extension('adminFunctions')
-        self.bot.load_extension('messageHandler')
-        self.bot.load_extension('musicPlayer_wavelink')
-        self.bot.load_extension('luckyDraws')
-        self.bot.load_extension('kancolle')
+        self.bot.reload_extension('manager')
+        self.bot.reload_extension('adminFunctions')
+        self.bot.reload_extension('messageHandler')
+        self.bot.reload_extension('musicPlayer_wavelink')
+        self.bot.reload_extension('luckyDraws')
+        self.bot.reload_extension('kancolle')
         await ctx.send('完成。')
 
     '''
@@ -166,7 +159,7 @@ class adminFunctions(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.is_owner()
-    @commands.command(name='update')
+    @commands.command(name='update') # remote git pull
     async def _update(self, ctx):
         await ctx.trigger_typing()
         result = subprocess.run(['git', 'pull'], stdout=subprocess.PIPE).stdout.decode('utf-8')
