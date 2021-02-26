@@ -6,9 +6,9 @@ import sqlite3  # this is for the db function
 from discord.ext.commands import CommandNotFound
 
 '''
-This cog is for confirming the bot was logged in, and it will initialize a loop task that will be executed every 450 seconds to prevent the Heroku dino from putting the bot to sleep mode
+This cog is for confirming the bot was logged in, handling general command errors, and debug/keyword reply toggles.
 '''
-# TODO: Finish database function some day!!!!!
+# TODO: Finish database function some day!!!!!(or not)
 
 
 class manager(commands.Cog):
@@ -34,12 +34,14 @@ class manager(commands.Cog):
 		if isinstance(error, CommandNotFound):
 			if ctx.message.content.count('.') >= 2:
 				return
-			embed = discord.Embed(title=':x: 糟了個糕。', colour=0xff0000)
-			embed.description = "你好像打錯字囉。"
-			embed.set_footer(text=error)
-			await ctx.send(embed=embed)
+			# embed = discord.Embed(title=':x: 糟了個糕。', colour=0xff0000)
+			# embed.description = "你好像打錯字囉。"
+			# embed.set_footer(text=error)
+			# await ctx.send(embed=embed)
+			await ctx.message.add_reaction("❓")
 		if isinstance(error, commands.CheckFailure):
-			await ctx.send(':x:權限不足或操作人員非應用程式擁有者。')
+			# await ctx.send(':x:權限不足或操作人員非應用程式擁有者。')
+			await ctx.message.add_reaction("❌")
 		else:
 			if self.debug:
 				raise error
