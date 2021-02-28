@@ -51,6 +51,34 @@ class messageHandler(commands.Cog):
     def get_destination(self):
         return self.messagedest
 
+    @commands.command(name='pekofy', aliases=['peko'])  # message pekofier peko!
+    async def _pekofy(self, ctx, *args):
+        channel = ctx.message.channel
+        messages = []
+        if args:  # if you want to pekofy your own message or a specific line
+            if "-self" in args:
+                async for message in channel.history(limit=10):
+                    if "pekofy" not in message.content and message.author == ctx.message.author:
+                        messages.append(message.content)
+                        msg = messages[0]
+                if msg:
+                    peko = msg + ' peko'
+                else:
+                    peko = '訊息太遠了我搆不到peko'
+            else:
+                msg = ''
+                for each in args:
+                    msg += (each + ' ')
+                peko = msg + 'peko'
+        else:
+            async for message in channel.history(limit=2):
+                if "pekofy" not in message.content: # and message.author == ctx.message.author:
+                    messages.append(message.content)
+            msg = messages[0]
+            peko = msg + ' peko'
+
+        await ctx.send(peko)
+
 
 def setup(bot):
     bot.add_cog(messageHandler(bot))
