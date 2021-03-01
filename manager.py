@@ -34,10 +34,6 @@ class manager(commands.Cog):
 		if isinstance(error, CommandNotFound):
 			if ctx.message.content.count('.') >= 2:
 				return
-			# embed = discord.Embed(title=':x: 糟了個糕。', colour=0xff0000)
-			# embed.description = "你好像打錯字囉。"
-			# embed.set_footer(text=error)
-			# await ctx.send(embed=embed)
 			await ctx.message.add_reaction("❓")
 		if isinstance(error, commands.CheckFailure):
 			# await ctx.send(':x:權限不足或操作人員非應用程式擁有者。')

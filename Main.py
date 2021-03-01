@@ -21,11 +21,4 @@ bot.load_extension('luckyDraws')
 bot.load_extension('kancolle')
 # bot.load_extension('holoScheduleV1')  # dead
 
-# BASIC COMMANDS (To make sure the bot is alive)
-'''
-Well, come to think of it, maybe the main function should not contain any command if commands are now sorted in cogs...?
-note to self: ping and manual are moved to adminFunctions.py
-'''
-
-# RUN THE BOT!!!
 bot.run(TOKEN)
