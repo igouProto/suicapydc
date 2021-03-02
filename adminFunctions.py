@@ -45,7 +45,7 @@ class adminFunctions(commands.Cog):
         else:
             announcement = message.content
             try:
-                if (announcement == 'cancel'):  # cancel the operation if 'cancel' is entered in the announcement
+                if announcement == 'cancel':  # cancel the operation if 'cancel' is entered in the announcement
                     await ctx.send('操作已取消。')
                     return
                 else:
@@ -114,7 +114,6 @@ class adminFunctions(commands.Cog):
         await ctx.send(embed=embed)
     '''
 
-
     @commands.command(name="ping")  # ping function, used for testing the bot's respond time. Now enhanced with voice latency and embed.
     async def _ping(self, ctx):
         t = await ctx.send('正在測量........')
@@ -160,12 +159,16 @@ class adminFunctions(commands.Cog):
 
     @commands.is_owner()
     @commands.command(name='update') # remote git pull
-    async def _update(self, ctx):
+    async def _update(self, ctx, *args: str):
         await ctx.trigger_typing()
         result = subprocess.run(['git', 'pull'], stdout=subprocess.PIPE).stdout.decode('utf-8')
         display = (result[:1990] + '...') if len(result) >= 1990 else result
         await ctx.send(f"```{display}```")
-        await ctx.invoke(self.bot.get_command('restart'))
+        if args and args == '-soft':  # "soft-restart"
+            await ctx.invoke(self.bot.get_command('reload'))
+        else:
+            await ctx.invoke(self.bot.get_command('restart'))
+
 
     @commands.is_owner()
     @commands.command(name='terminal', aliases=['term'])
