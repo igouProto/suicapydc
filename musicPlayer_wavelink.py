@@ -258,7 +258,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.shuffle_flag:
             statdisp += ' :twisted_rightwards_arrows:'
 
-        progress = f"{statdisp} {pos} / {duration}"
+        progress = int((raw_pos / length) * 100 / 10)
+        progress_bar = "──────────"
+        progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
+
+        progress = f"{statdisp} {pos} {progress_bar_disp} {duration}"
 
         if player.queue.getUpcoming:
             embed = discord.Embed(title=f"`{player.queue.getPosition:02d}.` **{title}**",
