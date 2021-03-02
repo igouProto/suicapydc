@@ -164,7 +164,7 @@ class adminFunctions(commands.Cog):
         result = subprocess.run(['git', 'pull'], stdout=subprocess.PIPE).stdout.decode('utf-8')
         display = (result[:1990] + '...') if len(result) >= 1990 else result
         await ctx.send(f"```{display}```")
-        if args and args == '-soft':  # "soft-restart"
+        if args and '-soft' in args:  # "soft-restart"
             await ctx.invoke(self.bot.get_command('reload'))
         else:
             await ctx.invoke(self.bot.get_command('restart'))
