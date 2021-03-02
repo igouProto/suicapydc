@@ -16,6 +16,7 @@ class manager(commands.Cog):
 		self.bot = bot
 		self.version = config.getVersion()
 		self.backstage = int(config.getBackstage())
+		self.error_channel = int(config.getErrChannel())
 
 		self.debug = False
 
@@ -70,6 +71,7 @@ async def wakeup():
 		a = 1 + 1  #yep, simple task to keep the bot up ;)
 		await asyncio.sleep(450)
 '''
+
 
 def setup(bot):
 	bot.add_cog(manager(bot))
