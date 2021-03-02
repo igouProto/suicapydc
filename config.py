@@ -56,3 +56,14 @@ def getPortal():
         portal = os.environ["PORTAL"]
         print("Portal channel loaded from os environment variable: {}".format(portal))
     return portal
+
+
+def getErrChannel():
+    try:
+        with open('config.json', 'r') as file:
+            configs = json.load(file)
+            portal = configs["error_collecting_id"]
+            print("Error collecting channel loaded from config.json: {}".format(portal))
+    except IOError as e:
+        pass
+    return portal
