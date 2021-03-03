@@ -258,11 +258,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.shuffle_flag:
             statdisp += ' :twisted_rightwards_arrows:'
 
-        progress = int((raw_pos / length) * 100 / 10)
-        progress_bar = "──────────"
+        progress = int((raw_pos / length) * 100 / 5)
+        progress_bar = "───────────────────"
         progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
 
-        progress = f"{statdisp} {pos} {progress_bar_disp} {duration}"
+        progress = f"{statdisp} ` {progress_bar_disp} ` {pos} / {duration}"
 
         if player.queue.getUpcoming:
             embed = discord.Embed(title=f"`{player.queue.getPosition:02d}.` **{title}**",
@@ -444,7 +444,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
 
     @commands.command(name='nowplay', aliases=['np'])  # now with interactive controller, yay
-    async def _nowplay(self, ctx):
+    async def _nowplay(self, ctx, *args: str):
         player = self.get_player(ctx)
         if not player.is_connected:
             raise NoVC
@@ -452,79 +452,84 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed = self.nowplay_embed(ctx=ctx, player=player)
         nowplay = await ctx.send(embed=embed)
 
-        player.active_music_controller = nowplay.id
-        print(f"{nowplay.guild.id}:{player.active_music_controller}")
+        if args and '-nc' in args:  # pass -nc to disable interactive button for this display
+            return
+        else:
+            player.active_music_controller = nowplay.id  # register the current embed as the controller
+            print(f"{nowplay.guild.id}:{player.active_music_controller}")
+            #  interactive buttons
+            await nowplay.add_reaction('🔄')
+            await nowplay.add_reaction('⏮')
+            await nowplay.add_reaction('⏯️')
+            await nowplay.add_reaction('⏭️')
+            await nowplay.add_reaction('🔂')
+            await nowplay.add_reaction('🔀')
+            await nowplay.add_reaction('🔼')
 
-        #  interactive buttons
-        await nowplay.add_reaction('🔄')
-        await nowplay.add_reaction('⏮')
-        await nowplay.add_reaction('⏯️')
-        await nowplay.add_reaction('⏭️')
-        await nowplay.add_reaction('🔂')
-        await nowplay.add_reaction('🔀')
-
-        def check(react, usr):
-            if usr.bot:
-                return False
-            if react.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
-                return False
-            elif react.message.guild.id == ctx.message.guild.id: # i want to be more precise (idk if it helps tho)
-                if react.message.id == player.active_music_controller:
-                    return True
+            def check(react, usr):
+                if usr.bot:
+                    return False
+                if react.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
+                    return False
+                elif react.message.guild.id == ctx.message.guild.id: # i want to be more precise (idk if it helps tho)
+                    if react.message.id == player.active_music_controller:
+                        return True
+                    else:
+                        return False
                 else:
                     return False
-            else:
-                return False
 
-        reaction = None
-        while nowplay.id == player.active_music_controller:
-            if str(reaction) == '⏮':
-                if player.queue.position > 0 and not player.queue.waiting_for_next:
+            reaction = None
+            while nowplay.id == player.active_music_controller:
+                if str(reaction) == '⏮':
+                    if player.queue.position > 0 and not player.queue.waiting_for_next:
+                        if player.queue.repeat_flag:
+                            player.queue.repeat_flag = False
+                        player.queue.position -= 2
+                        await player.stop()
+                        new_player = self.get_player(ctx)
+                        await asyncio.sleep(0.5)
+                        await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
+                elif str(reaction) == '⏯️':
+                    if player.is_paused:
+                        await player.set_pause(False)
+                    else:
+                        await player.set_pause(True)
+                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                elif str(reaction) == '⏭️':
                     if player.queue.repeat_flag:
                         player.queue.repeat_flag = False
-                    player.queue.position -= 2
                     await player.stop()
                     new_player = self.get_player(ctx)
                     await asyncio.sleep(0.5)
                     await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
-            elif str(reaction) == '⏯️':
-                if player.is_paused:
-                    await player.set_pause(False)
-                else:
-                    await player.set_pause(True)
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-            elif str(reaction) == '⏭️':
-                if player.queue.repeat_flag:
-                    player.queue.repeat_flag = False
-                await player.stop()
-                new_player = self.get_player(ctx)
-                await asyncio.sleep(0.5)
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
-            elif str(reaction) == '🔂':
-                player.queue.toggleRepeat()
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-            elif str(reaction) == '🔀':
-                player.queue.toggleShuffle()
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-            elif str(reaction) == '🔄':
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-            try:
-                reaction, user = await self.bot.wait_for('reaction_add',
-                                                         timeout=600,
-                                                         check=check)  # close the controller after being idle 10 minutes
-                await nowplay.remove_reaction(reaction, user)
-            except:  # when in doubt, break. whatever.
-                break
-        await nowplay.clear_reactions()
+                elif str(reaction) == '🔂':
+                    player.queue.toggleRepeat()
+                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                elif str(reaction) == '🔀':
+                    player.queue.toggleShuffle()
+                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                elif str(reaction) == '🔄':
+                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                elif str(reaction) == '🔼':  # break to hide the controls
+                    break
+                try:
+                    reaction, user = await self.bot.wait_for('reaction_add',
+                                                             timeout=600,
+                                                             check=check)  # close the controller after being idle 10 minutes
+                    await nowplay.remove_reaction(reaction, user)
+                except:  # when in doubt, break. whatever.
+                    break
+            await nowplay.clear_reactions()
 
-        if (not player.queue.waiting_for_next) and player.is_connected:
-            embed = self.nowplay_embed(ctx=ctx, player=player)
-            now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
-            embed.set_footer(text=f'按鈕已隱藏，如有需要，請用 .np 叫出新的操作面板。上次更新：{now}')
-            await nowplay.edit(embed=embed)
-            player.active_music_controller = 0
-        # await nowplay.delete()
-        # await ctx.message.delete()
+            if (not player.queue.waiting_for_next) and player.is_connected:
+                embed = self.nowplay_embed(ctx=ctx, player=player)
+                now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
+                embed.set_footer(text=f'按鈕已隱藏，如有需要，請用 .np 叫出新的操作面板。上次更新：{now}')
+                await nowplay.edit(embed=embed)
+                player.active_music_controller = 0
+            # await nowplay.delete()
+            # await ctx.message.delete()
 
     @_nowplay.error
     async def _nowplay_error(self, ctx, exception):
