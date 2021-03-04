@@ -11,6 +11,7 @@ class messageHandler(commands.Cog):
         self.keywords = []
         self.response = {}
         self.portal_id = int(config.getPortal())  # load the portal id from config
+        self.enable_portal_talk = True
         # read the keyword pairs from file
         try:
             with open('keywords.txt', 'r') as data:
@@ -40,8 +41,13 @@ class messageHandler(commands.Cog):
             await message.channel.send(msg)
         '''
     # portal talking function
-        if message.channel.id == self.portal_id:
-            await self.bot.get_channel(self.messagedest).send(message.content)
+        if message.channel.id == self.portal_id and self.enable_portal_talk:
+            if message.content:
+                await self.bot.get_channel(self.messagedest).send(message.content)
+            if message.attachments:
+                for each in message.attachments:
+                    await self.bot.get_channel(self.messagedest).send(each.url)
+
 
     @classmethod
     def set_destination(self, channel_id):
