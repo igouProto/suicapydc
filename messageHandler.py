@@ -48,7 +48,6 @@ class messageHandler(commands.Cog):
                 for each in message.attachments:
                     await self.bot.get_channel(self.messagedest).send(each.url)
 
-
     @classmethod
     def set_destination(self, channel_id):
         self.messagedest = channel_id
@@ -66,7 +65,7 @@ class messageHandler(commands.Cog):
                 async for message in channel.history(limit=10):
                     if "pekofy" not in message.content and message.author == ctx.message.author:
                         messages.append(message.content)
-                        msg = messages[0]
+                msg = messages[0]
                 if msg:
                     peko = msg + ' peko'
                 else:
