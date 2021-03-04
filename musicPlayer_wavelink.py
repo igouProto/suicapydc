@@ -238,9 +238,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     #  info embed builders
     def nowplay_embed(self, ctx, player) -> discord.Embed:
         track = player.current
-        if not track:
-           raise NothingIsPlaying
-
         title = track.title
         length = track.info['length'] / 1000
         url = track.info['uri']
@@ -258,11 +255,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.shuffle_flag:
             statdisp += ' :twisted_rightwards_arrows:'
 
-        progress = int((raw_pos / length) * 100 / 5)
-        progress_bar = "───────────────────"
-        progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
-
-        progress = f"{statdisp} ` {progress_bar_disp} ` {pos} / {duration}"
+        if track.is_stream:
+            progress = f"{statdisp} ` 🔴 LIVE ` "
+        else:
+            progress = int((raw_pos / length) * 100 / 5)
+            progress_bar = "───────────────────"
+            progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
+            progress = f"{statdisp} ` {progress_bar_disp} ` {pos} / {duration}"
 
         if player.queue.getUpcoming:
             embed = discord.Embed(title=f"`{player.queue.getPosition:02d}.` **{title}**",
@@ -274,7 +273,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed.set_author(name="現正播放～♪",
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
-        if track.thumb is not None:
+        if track and track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
 
         now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
@@ -291,7 +290,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed = discord.Embed(title=f"{title}", url=url)
         embed.add_field(name='上傳頻道', value=author)
         raw_duration = length
-        duration = f"{int(raw_duration / 60):02d}:{int(raw_duration % 60):02d}"
+        if track.is_stream:
+            duration = '直播'
+        else:
+            duration = f"{int(raw_duration / 60):02d}:{int(raw_duration % 60):02d}"
         embed.add_field(name='時長', value=duration, inline=True)
         embed.set_author(name=f"{ctx.author.display_name} 已將歌曲加入播放清單～♪", icon_url=ctx.author.avatar_url)
 
@@ -497,12 +499,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         await player.set_pause(True)
                     await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
                 elif str(reaction) == '⏭️':
-                    if player.queue.repeat_flag:
-                        player.queue.repeat_flag = False
-                    await player.stop()
-                    new_player = self.get_player(ctx)
-                    await asyncio.sleep(0.5)
-                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
+                    if player.queue.getUpcoming:
+                        if player.queue.repeat_flag:
+                            player.queue.repeat_flag = False
+                        await player.stop()
+                        new_player = self.get_player(ctx)
+                        await asyncio.sleep(0.5)
+                        await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
                 elif str(reaction) == '🔂':
                     player.queue.toggleRepeat()
                     await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
@@ -525,9 +528,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if (not player.queue.waiting_for_next) and player.is_connected:
                 embed = self.nowplay_embed(ctx=ctx, player=player)
                 now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
-                embed.set_footer(text=f'按鈕已隱藏，如有需要，請用 .np 叫出新的操作面板。上次更新：{now}')
+                embed.set_footer(text=f'按鈕已隱藏。用 .np 以叫出新的操作面板。上次更新：{now}')
                 await nowplay.edit(embed=embed)
-                player.active_music_controller = 0
+                # player.active_music_controller = 0
             # await nowplay.delete()
             # await ctx.message.delete()
 
