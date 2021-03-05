@@ -238,6 +238,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     #  info embed builders
     def nowplay_embed(self, ctx, player) -> discord.Embed:
         track = player.current
+        if not track:
+            raise NothingIsPlaying
+
+        # current track information
         title = track.title
         length = track.info['length'] / 1000
         url = track.info['uri']
@@ -245,16 +249,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         duration = f"{int(length / 60):02d}:{int(length % 60):02d}"
         pos = f"{int(raw_pos / 60):02d}:{int(raw_pos % 60):02d}"
 
+        # player status display before progress bar
         statdisp = ''  # the space for the status indicators (pause, loop, shuffle buttons)
         if player.is_paused:
             statdisp += ' :pause_button: '
-
         if player.queue.repeat_flag:
             statdisp += ' :repeat_one:'
-
         if player.queue.shuffle_flag:
             statdisp += ' :twisted_rightwards_arrows:'
 
+        # the progress bar display
         if track.is_stream:
             progress = f"{statdisp} ` 🔴 LIVE ` "
         else:
@@ -482,7 +486,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     return False
 
             reaction = None
-            while nowplay.id == player.active_music_controller:
+            while nowplay.id == player.active_music_controller and not player.queue.waiting_for_next:
                 if str(reaction) == '⏮':
                     if player.queue.position > 0 and not player.queue.waiting_for_next:
                         if player.queue.repeat_flag:
