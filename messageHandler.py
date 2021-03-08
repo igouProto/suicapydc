@@ -69,7 +69,7 @@ class messageHandler(commands.Cog):
                 if msg:
                     peko = msg + ' peko'
                 else:
-                    peko = '訊息太遠了我搆不到peko'
+                    peko = '訊息太遠了我搆不到 peko'
             else:
                 msg = ''
                 for each in args:
@@ -82,7 +82,13 @@ class messageHandler(commands.Cog):
             msg = messages[0]
             peko = msg + ' peko'
 
+        if peko.count("peko") >= 10:  # TMP = too much peko. 
+            peko = "太多peko了peko。"
+
         await ctx.send(peko)
+
+        if "pain peko" in peko:  # pain-peko
+            await ctx.send("https://i.pinimg.com/736x/f3/ff/0b/f3ff0bfe160d84d6f85bb53c06319406.jpg")
 
 
 def setup(bot):
