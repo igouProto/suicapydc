@@ -159,6 +159,18 @@ class adminFunctions(commands.Cog):
             if result.returncode == 0:
                 await ctx.message.add_reaction("✅")
 
+    @commands.is_owner()
+    @commands.command(name='msghandleroff', aliases=['msgoff'])
+    async def _msghandleroff(self, ctx):
+        self.bot.unload_extension('messageHandler')
+        await ctx.send('已關閉關鍵字回覆及傳聲筒。')
+
+    @commands.is_owner()
+    @commands.command(name='msghandleron', aliases=['msgon'])
+    async def _msghandleron(self, ctx):
+        self.bot.load_extension('messageHandler')
+        await ctx.send('已開啟關鍵字回覆及傳聲筒。')
+
 
 def setup(bot):
     bot.remove_command('help')  # I want my own help cmd.

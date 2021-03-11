@@ -12,6 +12,7 @@ class messageHandler(commands.Cog):
         self.response = {}
         self.portal_id = int(config.getPortal())  # load the portal id from config
         self.enable_portal_talk = True
+        self.kwreply_blacklist = []  # list of guilds that had turned off the keyword reply function
         # read the keyword pairs from file
         try:
             with open('keywords.txt', 'r') as data:
@@ -29,6 +30,8 @@ class messageHandler(commands.Cog):
         # Keyword respond function###
         if message.content in self.keywords:
             if message.author == self.bot.user:
+                return
+            elif message.guild.id in self.kwreply_blacklist:
                 return
             else:
                 # print('keyword hit')
@@ -89,6 +92,22 @@ class messageHandler(commands.Cog):
 
         if "pain peko" in peko:  # pain-peko
             await ctx.send("https://i.pinimg.com/736x/f3/ff/0b/f3ff0bfe160d84d6f85bb53c06319406.jpg")
+
+    @commands.command(name='repoff')  # command for turning keyword reply off for specific guild in case someone gets annoyed lmao
+    async def _reply_off(self, ctx):
+        if ctx.guild.id not in self.kwreply_blacklist:
+            self.kwreply_blacklist.append(ctx.guild.id)
+        print(self.kwreply_blacklist)
+        guild_name = self.bot.get_guild(ctx.guild.id)
+        await ctx.send(f"已為**{guild_name}**暫時關閉關鍵字回覆。打擾ㄌ。")
+
+    @commands.command(name='repon')
+    async def _reply_on(self, ctx):
+        if ctx.guild.id in self.kwreply_blacklist:
+            self.kwreply_blacklist.remove(ctx.guild.id)
+        print(self.kwreply_blacklist)
+        guild_name = self.bot.get_guild(ctx.guild.id)
+        await ctx.send(f"已為**{guild_name}**開啟關鍵字回覆。")
 
 
 def setup(bot):

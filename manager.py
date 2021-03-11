@@ -53,17 +53,6 @@ class manager(commands.Cog):
 			self.debug = True
 			await ctx.send('偵錯模式已開啟，查看後台以獲取錯誤訊息。')
 
-	@commands.is_owner()
-	@commands.command(name='msghandleroff', aliases=['msgoff'])
-	async def _msghandleroff(self, ctx):
-		self.bot.unload_extension('messageHandler')
-		await ctx.send('已關閉關鍵字回覆及傳聲筒。')
-
-	@commands.is_owner()
-	@commands.command(name='msghandleron', aliases=['msgon'])
-	async def _msghandleron(self, ctx):
-		self.bot.load_extension('messageHandler')
-		await ctx.send('已開啟關鍵字回覆及傳聲筒。')
 '''
 ###loop tasks to keep heroku from putting my bot to sleep## no need i moved to my own machine :D
 async def wakeup():
