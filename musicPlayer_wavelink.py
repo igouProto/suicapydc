@@ -404,12 +404,47 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
 
     @commands.command(name='disconnect', aliases=['dc'])
-    async def _disconnect(self, ctx):
+    async def _disconnect(self, ctx, *args):
         player = self.get_player(ctx)
-        await player.teardown()
-        if player.queue.getLength > 1:
-            await ctx.send(":boom: 已清除播放清單。")
-        await ctx.send(":arrow_left: 已解除連接。")
+
+        if player.is_paused or player.is_playing or player.queue.waiting_for_next and "f" not in args:  # pass f to force desconnect
+            warn_reason = ""
+            if player.is_paused:
+                warn_reason = "發現暫停中的曲目。"
+            elif player.is_playing:
+                warn_reason = "發現播放中的曲目。"
+            warning = await ctx.send(f":warning: {warn_reason}按一下 :regional_indicator_y: 來確定解除連接，或忽略此提示以取消。")
+            await warning.add_reaction('🇾')
+
+            def check(react, usr):
+                if usr.bot:
+                    return False
+                if react.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
+                    return False
+                else:
+                    return True
+
+            reaction = None
+            while True:
+                if str(reaction) == '🇾':
+                    await player.teardown()
+                    if player.queue.getLength > 1:
+                        await ctx.send(":boom: 已清除播放清單。")
+                    await ctx.send(":arrow_left: 已解除連接。")
+                    break
+                try:
+                    reaction, user = await self.bot.wait_for('reaction_add', timeout=5,
+                                                             check=check)  # close the buttons after 30 secs
+                except:
+                    await warning.edit(content=":information_source: 已取消解除連接。")
+                    await warning.clear_reactions()
+                    break
+            # await warning.clear_reactions()
+        else:
+            await player.teardown()
+            if player.queue.getLength > 1:
+                await ctx.send(":boom: 已清除播放清單。")
+            await ctx.send(":arrow_left: 已解除連接。")
 
     @commands.command(name='play', aliases=['p'])
     async def _play(self, ctx, *, query: str):
