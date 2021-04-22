@@ -7,6 +7,6 @@ A discord bot packed with music playback and some other features.
   Suica the bot is not yet ready for public installation as a lot of administrative functions are not implemented. The main purpose of this project is to force myself to learn python and I'm sure that I still got A WHOLE LOT to learn.
 </p>
 
---More documentation coming soon--
+--More documentation coming soon...?--
 <br>
 igouP.
