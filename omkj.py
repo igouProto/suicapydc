@@ -33,7 +33,7 @@ def omkj_generate(id, author):
 	random.seed(seedIndex)
 	# draw the results
 	luck = choiceluck(weight)
-	luckNum = random.randint(0, 9)
+	luckNum = random.randint(0, 500)
 	colorindex = random.randint(0, (len(colors)-1))
 	detindex = random.randint(0, (len(determinations)-1))
 	drawIndex = random.randint(0, 10)
