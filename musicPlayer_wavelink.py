@@ -162,6 +162,7 @@ class WavePlayer(wavelink.Player):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
         self.active_music_controller = 0
+        self.bounded_channel = 0
 
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
         if self.is_connected:
@@ -172,6 +173,8 @@ class WavePlayer(wavelink.Player):
             raise NoVC
 
         await super().connect(channel.id)
+        self.bounded_channel = channel.id
+        # print(f"player bounded to {self.bounded_channel}")
         return channel
 
     async def teardown(self):  # so we still need to rename this...
@@ -406,8 +409,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.command(name='disconnect', aliases=['dc'])
     async def _disconnect(self, ctx, *args):
         player = self.get_player(ctx)
-
-        if player.is_paused or player.is_playing or player.queue.waiting_for_next and "f" not in args:  # pass f to force desconnect
+        if (player.is_paused or player.is_playing) and "f" not in args:  # pass f to force disconnect
             warn_reason = ""
             if player.is_paused:
                 warn_reason = "發現暫停中的曲目。"
@@ -925,8 +927,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, SeekPositionOutOfBound):
             await ctx.send(":x: 指定的時間點超出歌曲範圍。")
 
-    @commands.command(name='clear', aliases=[
-        'cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
+    @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
     async def _clear(self, ctx):
         player = self.get_player(ctx)
 
@@ -1013,6 +1014,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await msg.delete()
         await ctx.message.delete()
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if before.channel is not None:
+            if (self.bot.user in before.channel.members) and len(before.channel.members) <= 1:
+                player = self.bot.wavelink.get_player(before.channel.guild.id)
+                await player.teardown()
 
 
 def setup(bot):
