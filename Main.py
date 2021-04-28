@@ -1,6 +1,7 @@
 from discord.ext import commands
 import config  # custom config module
 
+
 '''
 This is the main program of the bot, it creates a bot instance, loads all the extensions, and finally run it.
 '''
@@ -9,7 +10,7 @@ This is the main program of the bot, it creates a bot instance, loads all the ex
 print("Booting SUICA...")  # totally unnecessary but makes the booting sequence look cooler UwU
 bot = commands.Bot(command_prefix=config.getPrefix())
 TOKEN = config.getToken()
-config.version = '2.6.1'
+config.version = '2.6.2'
 
 # TODO (igouP): Gather all the extensions and use one single statement to load all of them.
 bot.load_extension('manager')
