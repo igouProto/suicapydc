@@ -20,10 +20,13 @@ class luckyDraws(commands.Cog):
 		
 	###OMIKUJI###
 	@commands.command(name = "omikuji", aliases = ['omkj'])  #Omikuji function that follows real-life occurrence of luck index :D
-	async def _omikuji(self, ctx):
+	async def _omikuji(self, ctx, *args):
 		await ctx.trigger_typing()
-		author = ctx.message.author 
-		embed = omkj.omkj_generate(author.id, author)
+		author = ctx.message.author
+		if 'r' in args:
+			embed = omkj.omkj_generate(author.id, author, True)
+		else:
+			embed = omkj.omkj_generate(author.id, author)
 		await ctx.send(embed = embed)
 
 def setup(bot):

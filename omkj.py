@@ -17,6 +17,8 @@ try:
 		determinations = luck_elements["determinations"]
 		directions = luck_elements["directions"]
 		bh3cal = luck_elements["bh3cal"]
+		draw_commnents = luck_elements["draw-comment"]
+		charge_comments = luck_elements["charge-comment"]
 	file.close()
 except IOError as e:
 	print("Failed to load luck components from json.")
@@ -27,9 +29,13 @@ def choiceluck(weight):
 	t = random.choices(numbers, weights=weight)
 	return int(t[0])
 
-def omkj_generate(id, author):
+def omkj_generate(id, author, force_random = False):
 	time = datetime.now()
 	seedIndex = time.year * 10000 + (time.month + 1) * 100 + time.day + id
+
+	if force_random:
+		seedIndex += (time.second + time.microsecond)
+
 	random.seed(seedIndex)
 	# draw the results
 	luck = choiceluck(weight)
@@ -37,7 +43,9 @@ def omkj_generate(id, author):
 	colorindex = random.randint(0, (len(colors)-1))
 	detindex = random.randint(0, (len(determinations)-1))
 	drawIndex = random.randint(0, 10)
+	draw_comment = draw_commnents[drawIndex]
 	payIndex = random.randint(0, 10)
+	charge_comment = charge_comments[payIndex]
 	dirIndex = random.randint(0, len(directions) - 1)
 	direction = directions[dirIndex]
 	serial = f"{seedIndex}"  # f"{luck:02d}{luckNum}{colorindex:03d}{detindex:02d}{drawIndex:02d}{dirIndex:02d}{payIndex:02d}"  # a serial number just for fun
@@ -46,8 +54,8 @@ def omkj_generate(id, author):
 	embed.set_author(name=f'{author.display_name} 的每日占卜結果～', icon_url = author.avatar_url)
 
 	embed.add_field(name='歐洲方位', value=directions[dirIndex], inline=True)
-	embed.add_field(name='抽卡指數', value=f'☆ {drawIndex}', inline=True)
-	embed.add_field(name='課金指數', value=f'☆ {payIndex}', inline=True)
+	embed.add_field(name='抽卡指數', value=f'{draw_comment} - ☆ {drawIndex}', inline=True)
+	embed.add_field(name='課金指數', value=f'{charge_comment} - ☆ {payIndex}', inline=True)
 	embed.add_field(name='幸運數', value=str(luckNum), inline=True)
 	embed.add_field(name='幸運色', value=str(colors[colorindex]), inline=True)
 	'''
@@ -59,7 +67,7 @@ def omkj_generate(id, author):
 				 f"幸運色：{colors[colorindex]}\n"
 	embed.add_field(name="你今天的運氣指標", value=luckString)
 	'''
-	embed.set_footer(text="#{} • {}".format(serial, strftime('%Y/%m/%d', localtime())))
+	embed.set_footer(text="{} • {}".format(f"天不靈地不理御神籤第{serial}號", strftime('%y/%m/%d', localtime())))
 	return embed
 
 def b3c_cal(id):
