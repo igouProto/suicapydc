@@ -238,6 +238,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         elif isinstance(obj, discord.Guild):
             return self.bot.wavelink.get_player(obj.id, cls=WavePlayer)
 
+    # converts seconds to h:mm:ss
     def time_parser(self, raw_duration: int):
         minutes, seconds = divmod(int(raw_duration), 60)  # minutes = duration / 60, second = duration % 60
         hours, minutes = divmod(int(minutes), 60)  # hours = minutes / 60, minutes = minutes % 60
@@ -248,12 +249,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         duration.append(f"{seconds:02d}")
         return ":".join(duration)
 
-    #  info embed builders
-    def nowplay_embed(self, ctx, player) -> discord.Embed:
-        track = player.current
-        if not track:
-            raise NothingIsPlaying
-
+    # progress bar display for nowplay and queue
+    def progress_bar(self, track, player):
         # current track information
         title = track.title
         length = track.info['length'] / 1000
@@ -280,12 +277,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
             progress = f"{statdisp} ` {progress_bar_disp} ` {pos} / {duration}"
 
-        if player.queue.getUpcoming:
-            embed = discord.Embed(title=f"`{player.queue.getPosition:02d}.` **{title}**",
-                                  url=url, description=progress)
-        else:
-            embed = discord.Embed(title=f"**{title}**",
-                                  url=url, description=progress)
+        return title, url, progress
+
+    #  info embed builders
+    def nowplay_embed(self, ctx, player) -> discord.Embed:
+        track = player.current
+        if not track:
+            raise NothingIsPlaying
+
+        title, url, progress = self.progress_bar(track, player)
+
+        embed = discord.Embed(title=f"**{title}**", url=url, description=progress)
 
         embed.set_author(name="現正播放～♪",
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
@@ -341,49 +343,24 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not track:  # if nothing is playing and the player is waiting
             track = player.queue.probeForTrack(player.queue.getPosition)  # get the last played song
 
-        title = track.title
-        length = track.info['length'] / 1000
-        url = track.info['uri']
-        raw_pos = player.position / 1000
-        duration = self.time_parser(length)
-        pos = self.time_parser(raw_pos)
-        thumb = track.thumb
+        title, url, progress = self.progress_bar(track, player)
+
+        formatted_queue_size = f"{player.queue.getLength} 首"
+        formatted_list_length = f"總時長 {self.time_parser(list_duration)}"
+        formatted_page_indicator = f'頁數 {page} / {len(sliced_lists)}'
 
         # display specific page of sliced list
         queue_disp = ''
         for track_info in sliced_lists[page - 1]:
             queue_disp += track_info
 
-        # player status display before progress bar
-        statdisp = ''  # the space for the status indicators (pause, loop, shuffle buttons)
-        if player.is_paused:
-            statdisp += ' :pause_button: '
-        if player.queue.repeat_flag:
-            statdisp += ' :repeat_one:'
-        if player.queue.shuffle_flag:
-            statdisp += ' :twisted_rightwards_arrows:'
-
-        # the progress bar display
-        if track.is_stream:
-            progress = f"{statdisp} ` 🔴 LIVE `"
-        else:
-            progress = int((raw_pos / length) * 100 / 5)
-            progress_bar = "───────────────────"
-            progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
-            progress = f"{statdisp} ` {progress_bar_disp} ` {pos} / {duration}"
-
-        embed = discord.Embed(title=f"`{player.queue.getPosition:02d}.` **{title}**",
-                              url=url, description=progress)
-
-        formatted_queue_size = f"{player.queue.getLength} 首"
-        formatted_list_length = f"總時長 {self.time_parser(list_duration)}"
-        formatted_page_indicator = f'頁數 {page} / {len(sliced_lists)}'
+        embed = discord.Embed(title=f"**{title}**",url=url, description=progress)
 
         embed.add_field(name=f"播放清單 ({formatted_page_indicator})",
                         value=queue_disp, inline=False)
 
-        if thumb is not None:
-            embed.set_thumbnail(url=thumb)
+        if track and track.thumb is not None:
+            embed.set_thumbnail(url=track.thumb)
 
         embed.set_footer(text=f"{formatted_queue_size} • {formatted_list_length}")
         if player.queue.waiting_for_next:
