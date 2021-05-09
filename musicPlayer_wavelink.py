@@ -354,15 +354,15 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         for track_info in sliced_lists[page - 1]:
             queue_disp += track_info
 
-        embed = discord.Embed(title=f"**{title}**",url=url, description=progress)
+        embed = discord.Embed(title=f"**{title}**", url=url, description=progress)
 
-        embed.add_field(name=f"播放清單 ({formatted_page_indicator})",
+        embed.add_field(name=f"播放清單",
                         value=queue_disp, inline=False)
 
         if track and track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
 
-        embed.set_footer(text=f"{formatted_queue_size} • {formatted_list_length}")
+        embed.set_footer(text=f"{formatted_page_indicator} • {formatted_queue_size} • {formatted_list_length}")
         if player.queue.waiting_for_next:
             embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌，或使用.pr / .jump指令回到上一首或指定曲目。')
 
