@@ -576,7 +576,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     break
                 try:
                     reaction, user = await self.bot.wait_for('reaction_add',
-                                                             timeout=20,
+                                                             timeout=600,
                                                              check=check)  # close the controller after being idle 10 minutes
                     await nowplay.remove_reaction(reaction, user)
                 except:  # when in doubt, break. whatever.
