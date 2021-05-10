@@ -428,18 +428,15 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             while True:
                 if str(reaction) == '🇾':
                     await player.teardown()
-                    if player.queue.getLength > 1:
-                        await ctx.send(":boom: 已清除播放清單。")
-                    await ctx.send(":arrow_left: 已解除連接。")
+                    await warning.edit(content=":arrow_left: 已解除連接。")
                     break
                 try:
-                    reaction, user = await self.bot.wait_for('reaction_add', timeout=7,
-                                                             check=check)
+                    reaction, user = await self.bot.wait_for('reaction_add', timeout=7, check=check)
                 except:
                     await warning.edit(content=":information_source: 已取消解除連接。")
                     await warning.clear_reactions()
                     break
-            # await warning.clear_reactions()
+            await warning.clear_reactions()
         else:
             await player.teardown()
             if player.queue.getLength > 1:
