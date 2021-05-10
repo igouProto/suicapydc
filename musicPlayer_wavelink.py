@@ -339,7 +339,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         sliced_lists = [full_list[i: i + 10] for i in range(0, len(full_list), 10)]  # 10 item per sub list
 
         # prepare for the info queue
-        track = player.current  # get the current plyting track
+        track = player.current  # get the current playing track
         if not track:  # if nothing is playing and the player is waiting
             track = player.queue.probeForTrack(player.queue.getPosition)  # get the last played song
 
@@ -366,17 +366,153 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.waiting_for_next:
             embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌，或使用.pr / .jump指令回到上一首或指定曲目。')
 
-        embed.set_author(name=f"{self.bot.get_guild(ctx.guild.id).name} 的播放清單～♪",
+        embed.set_author(name=f"現正播放～♪",
                          icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
 
         return embed
 
-    # nowplay panel updater
+    # nowplay panel updater (for updating the panel via text commands)
     async def nowplay_update(self, ctx):
         player = self.get_player(ctx)
         nowplay_panel = await ctx.fetch_message(player.active_music_controller)
         if nowplay_panel:
             await nowplay_panel.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+
+    # interactive buttons
+    async def nowplay_buttons(self, nowplay, player, ctx):
+        #  interactive buttons
+        await nowplay.add_reaction('🔄')
+        await nowplay.add_reaction('⏮')
+        await nowplay.add_reaction('⏯️')
+        await nowplay.add_reaction('⏭️')
+        await nowplay.add_reaction('🔂')
+        await nowplay.add_reaction('🔀')
+        await nowplay.add_reaction('📋')
+        await nowplay.add_reaction('🔼')
+
+        def check(react, usr):
+            if usr.bot:
+                return False
+            if react.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
+                return False
+            elif react.message.guild.id == ctx.message.guild.id:  # i want to be more precise (idk if it helps tho)
+                if react.message.id == player.active_music_controller:
+                    return True
+                else:
+                    return False
+            else:
+                return False
+
+        reaction = None
+        while nowplay.id == player.active_music_controller and not player.queue.waiting_for_next:
+            if str(reaction) == '⏮':
+                if player.queue.position > 0 and not player.queue.waiting_for_next:
+                    if player.queue.repeat_flag:
+                        player.queue.repeat_flag = False
+                    player.queue.position -= 2
+                    await player.stop()
+                    new_player = self.get_player(ctx)
+                    await asyncio.sleep(0.5)
+                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
+            elif str(reaction) == '⏯️':
+                if player.is_paused:
+                    await player.set_pause(False)
+                else:
+                    await player.set_pause(True)
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif str(reaction) == '⏭️':
+                if player.queue.getUpcoming:
+                    if player.queue.repeat_flag:
+                        player.queue.repeat_flag = False
+                    await player.stop()
+                    new_player = self.get_player(ctx)
+                    await asyncio.sleep(0.5)
+                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
+            elif str(reaction) == '🔂':
+                player.queue.toggleRepeat()
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif str(reaction) == '🔀':
+                player.queue.toggleShuffle()
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif str(reaction) == '🔄':
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif str(reaction) == '🔼':  # break to hide the controls
+                # player.active_music_controller = 0
+                break
+            elif str(reaction) == '📋':  # switch to queue display mode
+                current_page = math.floor(int(player.queue.getPosition) / 10) + 1
+                await nowplay.clear_reactions()
+                await nowplay.edit(embed=self.queue_embed(ctx=ctx, page=current_page, player=player))
+                await self.queue_buttons(nowplay, player, page=current_page, ctx=ctx)
+                break
+            try:
+                reaction, user = await self.bot.wait_for('reaction_add',
+                                                         timeout=600,
+                                                         check=check)  # close the controller after being idle 10 minutes
+                await nowplay.remove_reaction(reaction, user)
+            except:  # when in doubt, break. whatever.
+                break
+        player.active_music_controller = 0
+        await nowplay.clear_reactions()
+
+    async def queue_buttons(self, queue_display, player, page, ctx):
+        # interactive buttons
+        await queue_display.add_reaction('🔄')
+        if math.ceil(player.queue.getLength / 10) > 1:  # display interactive buttons only when there's more than 1 page
+            await queue_display.add_reaction('⏪')
+            await queue_display.add_reaction('⬅️')
+            await queue_display.add_reaction('➡️')
+            await queue_display.add_reaction('⏩')
+        await queue_display.add_reaction('🎵')
+        await queue_display.add_reaction('🔼')
+
+        def check(react, usr):
+            if usr.bot:
+                return False
+            if react.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
+                return False
+            elif react.message.guild.id == ctx.message.guild.id:  # i want to be more precise (idk if it helps tho)
+                if react.message.id == player.active_music_controller:
+                    return True
+                else:
+                    return False
+            else:
+                return False
+
+        reaction = None
+        while True:
+            if str(reaction) == '⏪':
+                page = 1
+                await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+            elif str(reaction) == '⬅️':
+                if page > 1:
+                    page -= 1
+                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+            elif str(reaction) == '🔄':
+                page = math.floor(int(player.queue.getPosition) / 10) + 1
+                await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+            elif str(reaction) == '➡️':
+                if page < math.ceil(player.queue.getLength / 10):
+                    page += 1
+                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+            elif str(reaction) == '⏩':
+                page = math.ceil(player.queue.getLength / 10)
+                await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+            elif str(reaction) == '🔼':  # break to hide the controls (and switch back to nowplay)
+                await queue_display.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                break
+            elif str(reaction) == '🎵':  # switch to nowplay display mode
+                await queue_display.clear_reactions()
+                await queue_display.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await self.nowplay_buttons(queue_display, player, ctx=ctx)
+                break
+            try:
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=600, check=check)  # close the buttons after 30 secs
+                await queue_display.remove_reaction(reaction, user)
+            except:
+                break
+        player.active_music_controller = 0
+        await queue_display.clear_reactions()
 
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
@@ -495,73 +631,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         else:
             player.active_music_controller = nowplay.id  # register the current embed as the controller
             print(f"{nowplay.guild.id}:{player.active_music_controller}")
-            #  interactive buttons
-            await nowplay.add_reaction('🔄')
-            await nowplay.add_reaction('⏮')
-            await nowplay.add_reaction('⏯️')
-            await nowplay.add_reaction('⏭️')
-            await nowplay.add_reaction('🔂')
-            await nowplay.add_reaction('🔀')
-            await nowplay.add_reaction('🔼')
 
-            def check(react, usr):
-                if usr.bot:
-                    return False
-                if react.message.guild.id != ctx.message.guild.id:  # prevent cross-guild remote control glitch
-                    return False
-                elif react.message.guild.id == ctx.message.guild.id:  # i want to be more precise (idk if it helps tho)
-                    if react.message.id == player.active_music_controller:
-                        return True
-                    else:
-                        return False
-                else:
-                    return False
-
-            reaction = None
-            while nowplay.id == player.active_music_controller and not player.queue.waiting_for_next:
-                if str(reaction) == '⏮':
-                    if player.queue.position > 0 and not player.queue.waiting_for_next:
-                        if player.queue.repeat_flag:
-                            player.queue.repeat_flag = False
-                        player.queue.position -= 2
-                        await player.stop()
-                        new_player = self.get_player(ctx)
-                        await asyncio.sleep(0.5)
-                        await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
-                elif str(reaction) == '⏯️':
-                    if player.is_paused:
-                        await player.set_pause(False)
-                    else:
-                        await player.set_pause(True)
-                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-                elif str(reaction) == '⏭️':
-                    if player.queue.getUpcoming:
-                        if player.queue.repeat_flag:
-                            player.queue.repeat_flag = False
-                        await player.stop()
-                        new_player = self.get_player(ctx)
-                        await asyncio.sleep(0.5)
-                        await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
-                elif str(reaction) == '🔂':
-                    player.queue.toggleRepeat()
-                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-                elif str(reaction) == '🔀':
-                    player.queue.toggleShuffle()
-                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-                elif str(reaction) == '🔄':
-                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-                elif str(reaction) == '🔼':  # break to hide the controls
-                    player.active_music_controller = 0
-                    break
-                try:
-                    reaction, user = await self.bot.wait_for('reaction_add',
-                                                             timeout=600,
-                                                             check=check)  # close the controller after being idle 10 minutes
-                    await nowplay.remove_reaction(reaction, user)
-                except:  # when in doubt, break. whatever.
-                    player.active_music_controller = 0
-                    break
-            await nowplay.clear_reactions()
+            await self.nowplay_buttons(nowplay, player, ctx)  # show the control panel
 
             if (not player.queue.waiting_for_next) and player.is_connected:
                 embed = self.nowplay_embed(ctx=ctx, player=player)
@@ -594,53 +665,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         embed = self.queue_embed(ctx=ctx, page=page, player=player)
         queue_display = await ctx.send(embed=embed)
+        player.active_music_controller = queue_display.id  # register the current embed as the controller
+        await self.queue_buttons(queue_display, player, page, ctx)
 
-        if math.ceil(player.queue.getLength / 10) > 1:  # display interactive buttons only when there's more than 1 page
-            # interactive buttons
-            # solution taken from: https://stackoverflow.com/questions/55075157/discord-rich-embed-buttons/65336328#65336328
-            await queue_display.add_reaction('⏪')
-            await queue_display.add_reaction('⬅️')
-            await queue_display.add_reaction('⏺️')
-            await queue_display.add_reaction('➡️')
-            await queue_display.add_reaction('⏩')
-            await queue_display.add_reaction('🔼')
-
-            def check(reaction, user):
-                if user.bot:
-                    return False
-                if reaction.message.guild.id != ctx.message.guild.id:
-                    return False
-                else:
-                    return True
-
-            reaction = None
-            while True:
-                if str(reaction) == '⏪':
-                    page = 1
-                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
-                elif str(reaction) == '⬅️':
-                    if page > 1:
-                        page -= 1
-                        await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
-                elif str(reaction) == '⏺️':
-                    page = math.floor(int(player.queue.getPosition) / 10) + 1
-                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
-                elif str(reaction) == '➡️':
-                    if page < math.ceil(player.queue.getLength / 10):
-                        page += 1
-                        await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
-                elif str(reaction) == '⏩':
-                    page = math.ceil(player.queue.getLength / 10)
-                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
-                elif str(reaction) == '🔼':  # break to hide the controls
-                    break
-                try:
-                    reaction, user = await self.bot.wait_for('reaction_add', timeout=20,
-                                                             check=check)  # close the buttons after 30 secs
-                    await queue_display.remove_reaction(reaction, user)
-                except:
-                    break
-            await queue_display.clear_reactions()
+        if (not player.queue.waiting_for_next) and player.is_connected:
+            embed = self.nowplay_embed(ctx=ctx, player=player)
+            now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
+            embed.set_footer(text=f'按鈕已隱藏。用 .np 以叫出新的操作面板。上次更新：{now}')
+            await queue_display.edit(embed=embed)
 
     @_queue.error
     async def _queue_error(self, ctx, exception):
@@ -1013,6 +1045,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await msg.delete()
         await ctx.message.delete()
 
+    '''
     # auto disconnect when everyone is gone from the VC
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -1021,6 +1054,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if (self.bot.user in before.channel.members) and len(before.channel.members) <= 1:
                 player = self.bot.wavelink.get_player(before.channel.guild.id)
                 await player.teardown()
+    '''
 
 
 def setup(bot):
