@@ -10,7 +10,7 @@ This is the main program of the bot, it creates a bot instance, loads all the ex
 print("Booting SUICA...")  # totally unnecessary but makes the booting sequence look cooler UwU
 bot = commands.Bot(command_prefix=config.getPrefix())
 TOKEN = config.getToken()
-config.version = '2.8.0'
+config.version = '2.9.0'
 
 # TODO (igouP): Gather all the extensions and use one single statement to load all of them.
 bot.load_extension('manager')
@@ -21,5 +21,6 @@ bot.load_extension('musicPlayer_wavelink')
 bot.load_extension('luckyDraws')
 bot.load_extension('kancolle')
 # bot.load_extension('holoScheduleV1')  # dead
+bot.load_extension('stonks')
 
 bot.run(TOKEN)
