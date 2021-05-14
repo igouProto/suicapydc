@@ -16,7 +16,7 @@ class Stonks(commands.Cog):
             print(code)
             try:
                 stonk = yf.Ticker(code)
-                name = stonk.info["longName"]
+                name = stonk.info["longName"] if "longName" in stonk.info else stonk.info["name"]
                 price = stonk.info["regularMarketPrice"]
                 prev_close = stonk.info["previousClose"]
                 high = stonk.info["dayHigh"]
