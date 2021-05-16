@@ -225,9 +225,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
-        await self.bot.wavelink.initiate_node(host='0.0.0.0',
-                                              port=80,
-                                              rest_uri='http://0.0.0.0:80',
+        await self.bot.wavelink.initiate_node(host='127.0.0.1',
+                                              port=233,
+                                              rest_uri='http://127.0.0.1:233',
                                               password='igproto',
                                               identifier='MAIN',
                                               region='Singapore', )
