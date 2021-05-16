@@ -225,12 +225,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
-        await self.bot.wavelink.initiate_node(host='127.0.0.1',
-                                              port=2333,
-                                              rest_uri='http://127.0.0.1:2333',
+        await self.bot.wavelink.initiate_node(host='0.0.0.0',
+                                              port=80,
+                                              rest_uri='http://0.0.0.0:80',
                                               password='igproto',
                                               identifier='MAIN',
-                                              region='Hong Kong', )
+                                              region='Singapore', )
 
     def get_player(self, obj):
         if isinstance(obj, commands.Context):
@@ -1045,7 +1045,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await msg.delete()
         await ctx.message.delete()
 
-    '''
+
     # auto disconnect when everyone is gone from the VC
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -1054,7 +1054,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if (self.bot.user in before.channel.members) and len(before.channel.members) <= 1:
                 player = self.bot.wavelink.get_player(before.channel.guild.id)
                 await player.teardown()
-    '''
 
 
 def setup(bot):
