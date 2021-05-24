@@ -87,7 +87,7 @@ class Queue:
         if not self._queue:
             raise EmptyQueue
         self.waiting_for_next = False
-        if self.shuffle_flag and self.waiting_for_next is False:
+        if self.shuffle_flag == True and self.waiting_for_next is False:
             self.position = random.randint(0, self.getLength - 1)
         else:
             self.position += 1
@@ -163,6 +163,7 @@ class WavePlayer(wavelink.Player):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
         self.active_music_controller = 0
+        self.controller_mode = 0  # 0 = none, 1 = nowplay, 2 = queue
         self.bounded_channel = 0
 
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
@@ -372,15 +373,20 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         return embed
 
-    # nowplay panel updater (for updating the panel via text commands)
+    # panel updater (for updating the panel while text commands are used)
     async def nowplay_update(self, ctx):
         player = self.get_player(ctx)
         nowplay_panel = await ctx.fetch_message(player.active_music_controller)
         if nowplay_panel:
-            await nowplay_panel.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
-
+            if player.controller_mode == 1:
+                await nowplay_panel.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+            elif player.controller_mode == 2:
+                page = math.floor(int(player.queue.getPosition) / 10) + 1
+                await nowplay_panel.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
     # interactive buttons
-    async def nowplay_buttons(self, nowplay, player, ctx):
+    async def nowplay_buttons(self, nowplay, player: WavePlayer, ctx):
+        # set the player's controller mode to nowplay (1)
+        player.controller_mode = 1
         #  interactive buttons
         await nowplay.add_reaction('🔄')
         await nowplay.add_reaction('⏮')
@@ -422,7 +428,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     await player.set_pause(True)
                 await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
             elif str(reaction) == '⏭️':
-                if player.queue.getUpcoming:
+                if player.queue.getUpcoming or player.queue.shuffle_flag:  # if there's an upcoming song or the shuffle function is on
                     if player.queue.repeat_flag:
                         player.queue.repeat_flag = False
                     await player.stop()
@@ -453,10 +459,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await nowplay.remove_reaction(reaction, user)
             except:  # when in doubt, break. whatever.
                 break
+        #  reset controller status
         player.active_music_controller = 0
+        player.controller_mode = 0
         await nowplay.clear_reactions()
 
     async def queue_buttons(self, queue_display, player, page, ctx):
+        # set the player's controller mode to queue (2)
+        player.controller_mode = 2
         # interactive buttons
         await queue_display.add_reaction('🔄')
         if math.ceil(player.queue.getLength / 10) > 1:  # display interactive buttons only when there's more than 1 page
@@ -1004,7 +1014,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         if player.queue.repeat_flag:
             player.queue.toggleRepeat()
-            # lp_toggle = await ctx.send(':arrow_right: 已自動停用單曲循環播放。')
 
         player.queue.jump(index)
         await player.stop()
@@ -1045,7 +1054,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await asyncio.sleep(5)
         await msg.delete()
         await ctx.message.delete()
-
 
     # auto disconnect when everyone is gone from the VC
     @commands.Cog.listener()
