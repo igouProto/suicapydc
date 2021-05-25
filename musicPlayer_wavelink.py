@@ -163,6 +163,7 @@ class WavePlayer(wavelink.Player):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
         self.active_music_controller = 0
+        self.music_controller_is_active = False  # indicates whether there's an active controller panel. For deciding whether to delete text-command messages.
         self.controller_mode = 0  # 0 = none, 1 = nowplay, 2 = queue
         self.bounded_channel = 0
 
@@ -383,8 +384,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             elif player.controller_mode == 2:
                 page = math.floor(int(player.queue.getPosition) / 10) + 1
                 await nowplay_panel.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+
     # interactive buttons
     async def nowplay_buttons(self, nowplay, player: WavePlayer, ctx):
+        player.music_controller_is_active = True
         # set the player's controller mode to nowplay (1)
         player.controller_mode = 1
         #  interactive buttons
@@ -459,12 +462,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await nowplay.remove_reaction(reaction, user)
             except:  # when in doubt, break. whatever.
                 break
-        #  reset controller status
-        player.active_music_controller = 0
+        # reset controller status
+        # player.active_music_controller = 0
+        player.music_controller_is_active = False
         player.controller_mode = 0
         await nowplay.clear_reactions()
 
     async def queue_buttons(self, queue_display, player, page, ctx):
+        player.music_controller_is_active = True
         # set the player's controller mode to queue (2)
         player.controller_mode = 2
         # interactive buttons
@@ -491,7 +496,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 return False
 
         reaction = None
-        while True:
+        while queue_display.id == player.active_music_controller and not player.queue.waiting_for_next:
             if str(reaction) == '⏪':
                 page = 1
                 await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
@@ -522,7 +527,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await queue_display.remove_reaction(reaction, user)
             except:
                 break
-        player.active_music_controller = 0
+        # reset controller status
+        # player.active_music_controller = 0
+        player.music_controller_is_active = False
+        player.controller_mode = 0
         await queue_display.clear_reactions()
 
     @wavelink.WavelinkMixin.listener()
@@ -677,6 +685,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed = self.queue_embed(ctx=ctx, page=page, player=player)
         queue_display = await ctx.send(embed=embed)
         player.active_music_controller = queue_display.id  # register the current embed as the controller
+        print(f"{queue_display.guild.id}:{player.active_music_controller}")
         await self.queue_buttons(queue_display, player, page, ctx)
 
         if (not player.queue.waiting_for_next) and player.is_connected:
@@ -699,7 +708,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await player.set_pause(True)
         msg = await ctx.send(":pause_button: 暫停！")
-        if player.active_music_controller != 0:
+        if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
@@ -718,7 +727,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
         await player.set_pause(False)
         msg = await ctx.send(":arrow_forward: 繼續！")
-        if player.active_music_controller != 0:
+        if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
@@ -743,7 +752,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await player.stop()
         info = ":track_next: 跳過！"
         msg = await ctx.send(info)
-        if player.active_music_controller != 0:
+        if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
@@ -781,7 +790,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await player.stop()  # then let it advance 1 step
         info = ":track_previous: 上一首！"
         msg = await ctx.send(info)
-        if player.active_music_controller != 0:
+        if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
@@ -809,7 +818,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg = await ctx.send(':repeat_one: 單曲循環播放已啟用。')
         else:
             msg = await ctx.send(':arrow_right: 單曲循環播放已停用。')
-        if player.active_music_controller != 0:
+        if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
@@ -823,7 +832,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg = await ctx.send(':twisted_rightwards_arrows: 隨機播放已啟用。')
         else:
             msg = await ctx.send(':arrow_right: 隨機播放已停用。')
-        if player.active_music_controller != 0:
+        if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
@@ -896,20 +905,23 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if pos is not None:
             if ':' in pos:  # support for format like xx:xx
                 converted_pos = pos.split(':')
-                seek = (int(converted_pos[0]) * 60 + int(converted_pos[1])) * 1000
+                seek = 0
+                for i in converted_pos:
+                    seek += int(i) * (60 ** (len(converted_pos) - converted_pos.index(i) - 1))  # a:b:c -> (a * 60^2 + b * 60^1 + c * 60^0)
             else:  # if number is directly input
-                seek = int(pos) * 1000
+                seek = int(pos)
 
             if seek > player.current.length or seek < 0:
                 raise SeekPositionOutOfBound
 
-            seekDisp = int(seek / 1000)
-            await player.seek(position=seek)
-            msg = await ctx.send(f':fast_forward: 已跳轉至 **{self.time_parser(seekDisp)}**')
+            await player.seek(position=seek * 1000)
+            msg = await ctx.send(f':fast_forward: 已跳轉至 **{self.time_parser(seek)}**')
             # await ctx.invoke(self.bot.get_command('nowplay'))
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
+            if player.music_controller_is_active:
+                await self.nowplay_update(ctx)
+                await asyncio.sleep(5)
+                await msg.delete()
+                await ctx.message.delete()
 
     @_seek.error
     async def _seek_error(self, ctx, exception):
@@ -1023,7 +1035,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player.queue.waiting_for_next = False
 
         msg = await ctx.send(":track_next: 跳過！\n")
-        if player.active_music_controller != 0:
+        if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
