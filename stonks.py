@@ -4,11 +4,12 @@ import yfinance as yf
 import re  # for regex matching for code
 import datetime
 
+
 class Stonks(commands.Cog):
 
     @commands.command(name='stonks', aliases=['st'])
     async def _stonks(self, ctx, code: str = None):
-        tw_stock_code_pattern = "[0-9]{4}"
+        tw_stock_code_pattern = "^[0-9]{4}$"
         await ctx.trigger_typing()
         if code:
             if re.match(tw_stock_code_pattern, code):
