@@ -7,6 +7,7 @@ import lscGen
 import rscGen
 '''
 This cog contains commands that generates recipes for Kantai collection"
+(Now refactored into doodads.py)
 '''
 
 class kancolle(commands.Cog):
@@ -14,8 +15,6 @@ class kancolle(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
 
-	###KANCOLLE RECIPE GENERATOR###
-	###LSC###
 	@commands.command(name = "lsc")
 	async def _lsc(self, ctx, arg: str = None):
 		print (arg)
@@ -37,7 +36,6 @@ class kancolle(commands.Cog):
 		embed.set_footer(text="{}".format(strftime('%Y/%m/%d', localtime())))
 		await ctx.send(embed = embed)
 
-	###RSC###
 	@commands.command(name = "rsc")
 	async def _rsc(self, ctx, arg: str = None):
 		await ctx.trigger_typing()

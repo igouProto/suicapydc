@@ -17,7 +17,7 @@ try:
 		determinations = luck_elements["determinations"]
 		directions = luck_elements["directions"]
 		bh3cal = luck_elements["bh3cal"]
-		draw_commnents = luck_elements["draw-comment"]
+		draw_comments = luck_elements["draw-comment"]
 		charge_comments = luck_elements["charge-comment"]
 	file.close()
 except IOError as e:
@@ -29,26 +29,27 @@ def choiceluck(weight):
 	t = random.choices(numbers, weights=weight)
 	return int(t[0])
 
-def omkj_generate(id, author, force_random = False):
+
+def omkj_generate(id, author, force_random=False):
 	time = datetime.now()
-	seedIndex = time.year * 10000 + (time.month + 1) * 100 + time.day + id
+	seed = time.year * 10000 + (time.month + 1) * 100 + time.day + id
 
 	if force_random:
-		seedIndex += (time.second + time.microsecond)
+		seed += (time.second + time.microsecond)
 
-	random.seed(seedIndex)
+	random.seed(seed)
 	# draw the results
 	luck = choiceluck(weight)
 	luckNum = random.randint(0, 500)
 	colorindex = random.randint(0, (len(colors)-1))
 	detindex = random.randint(0, (len(determinations)-1))
 	drawIndex = random.randint(0, 10)
-	draw_comment = draw_commnents[drawIndex]
+	draw_comment = draw_comments[drawIndex]
 	payIndex = random.randint(0, 10)
 	charge_comment = charge_comments[payIndex]
 	dirIndex = random.randint(0, len(directions) - 1)
 	direction = directions[dirIndex]
-	serial = f"{seedIndex}"  # f"{luck:02d}{luckNum}{colorindex:03d}{detindex:02d}{drawIndex:02d}{dirIndex:02d}{payIndex:02d}"  # a serial number just for fun
+	serial = f"{seed}"  # showing the seed just for fun
 	# the embed
 	embed = discord.Embed(title="**{}**".format(fortune[luck]), description = str(determinations[detindex]) )
 	embed.set_author(name=f'{author.display_name} 的每日占卜結果～', icon_url = author.avatar_url)
@@ -69,6 +70,7 @@ def omkj_generate(id, author, force_random = False):
 	'''
 	embed.set_footer(text="{} • {}".format(f"天不靈地不理御神籤第{serial}號", strftime('%y/%m/%d', localtime())))
 	return embed
+
 
 def b3c_cal(id):
 	now = datetime.now()
@@ -98,5 +100,5 @@ def b3c_cal(id):
 	embed.add_field(name = '課金指數', value = '☆{0:0.1f}'.format(payIndex), inline = True)
 	dirText = '建議面向**{}**方抽卡，離歐洲最近。'.format(direction)
 	embed.add_field(name = '座位面向', value = dirText, inline = False)
-	
+
 	return embed

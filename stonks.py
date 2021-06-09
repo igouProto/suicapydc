@@ -2,7 +2,6 @@ from discord.ext import commands
 import discord
 import yfinance as yf
 import re  # for regex matching for code
-import datetime
 
 
 class Stonks(commands.Cog):
