@@ -95,7 +95,7 @@ class doodads(commands.Cog):
 	@commands.command(name="calculator", aliases = ['calc', 'c'])  # calculator! But I can't make one so I'm using the math.js api!
 	async def _calculator(self, ctx, *expr: str):
 		if expr:
-			await ctx.trigger_typing
+			await ctx.trigger_typing()
 			expression = ''.join(expr)
 			expr_url = urllib.parse.quote_plus(expression)
 			request = "http://api.mathjs.org/v4/?expr=" + expr_url
