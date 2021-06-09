@@ -103,7 +103,9 @@ class doodads(commands.Cog):
 			if r.status_code == requests.codes.ok:
 				result = r.text
 			else:
-				result = "出問題了owq"
+				result = f"出問題了owq (HTTP {r.status_code})"
+				if r.content:
+					result += f"\n({r.content.decode('utf-8')})"
 
 			embed = discord.Embed(title=expression, description="= " + result)
 			embed.set_author(name="可愛ㄉ計算小機機")
