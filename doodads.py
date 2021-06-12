@@ -17,7 +17,8 @@ import rscGen
 import fake_nkodice
 
 '''
-This cog contains some doodads including a recipe generator for Kantai Collection, an omikuji function, honkai impact calendar, and a calculator that uses the math.js api"
+This cog contains some doodads including a recipe generator for Kantai Collection, an omikuji function, honkai impact calendar, and a calculator that uses the math.js api
+NEW: Fake NKODICE. Support the real game here! https://store.steampowered.com/app/1510950/NKODICE/
 '''
 
 
@@ -178,6 +179,8 @@ class doodads(commands.Cog):
 					if str(reaction) == '⏫':
 						await game.nudge()
 						await game_panel.edit(embed=self.dice_embed(game=game))
+					elif str(reaction) == '❌':
+						break
 					try:
 						reaction, user = await self.bot.wait_for('reaction_add', timeout=5, check=check)
 						await game_panel.remove_reaction(reaction, user)
