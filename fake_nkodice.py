@@ -38,10 +38,10 @@ class fake_nkodice:
         self.rolls = 0
         self.nudges = 0
 
-        self.pool = ['う', 'ま', 'ち', 'ん', 'こ', 'お']
+        self.pool = ['ん', 'お']
         self.selection = ['', '', '', '', '']
         self.temp_selection = []  # for combo calculation
-        self.dices = 5
+        self.dices = 6
         self.last_appeared_words = []
         self.appeared_words = []
 
@@ -210,9 +210,9 @@ class fake_nkodice:
             self.C_score_add *= (1.5 + (self.selection.count('こ') - 3))
             self.consecutive_stat += f"[{'Ｋ' * self.selection.count('こ')}] 🇺 🇲 🇨 × {(1.5 + (self.selection.count('こ') - 3))}\n"
         if self.selection.count('お') >= 3:
-            self.U_score_add = int(self.U_score_add) * (1.5 + (self.selection.count('お') - 3))
-            self.M_score_add = int(self.M_score_add) * (1.5 + (self.selection.count('お') - 3))
-            self.C_score_add = int(self.C_score_add) * (1.5 + (self.selection.count('お') - 3))
+            self.U_score_add = abs(int(self.U_score_add) * (1.5 + (self.selection.count('お') - 3)))
+            self.M_score_add = abs(int(self.M_score_add) * (1.5 + (self.selection.count('お') - 3)))
+            self.C_score_add = abs(int(self.C_score_add) * (1.5 + (self.selection.count('お') - 3)))
             self.consecutive_stat += f"[{'Ｏ' * self.selection.count('お')}] 🇺 🇲 🇨 × {(1.5 + (self.selection.count('お') - 3))}\n"
             self.ooo = True
 
