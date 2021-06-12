@@ -155,6 +155,7 @@ class fake_nkodice:
                 self.U_score_add += 1000 * self.UN_combo
                 self.combo_count += 1
             if item == 'UT':
+                self.UT_combo = self.UT_combo + 1 if 'UT' in self.last_appeared_words else 1
                 self.combo_stat += f'[ＵＮＣＨＩ] 🇺 + {1000 * self.UT_combo} ({self.UT_combo}x)\n'
                 self.U_score_add += 1000 * self.UT_combo
                 self.combo_count += 1
