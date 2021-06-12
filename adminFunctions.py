@@ -84,10 +84,11 @@ class adminFunctions(commands.Cog):
         self.bot.reload_extension('manager')
         self.bot.reload_extension('adminFunctions')
         self.bot.reload_extension('messageHandler')
-        self.bot.reload_extension('musicPlayer_wavelink')
         self.bot.reload_extension('luckyDraws')
         self.bot.reload_extension('kancolle')
         self.bot.reload_extension('stonks')
+        self.bot.reload_extension('doodads')
+        self.bot.reload_extension('musicPlayer_wavelink')
         await ctx.send('完成。')
 
     @commands.command(name="ping")  # ping function, used for testing the bot's respond time. Now enhanced with voice latency and embed.
