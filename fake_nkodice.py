@@ -38,10 +38,10 @@ class fake_nkodice:
         self.rolls = 0
         self.nudges = 0
 
-        self.pool = ['ん', 'お']
+        self.pool = ['う', 'ま', 'ち', 'ん', 'こ', 'お']
         self.selection = ['', '', '', '', '']
         self.temp_selection = []  # for combo calculation
-        self.dices = 6
+        self.dices = 5
         self.last_appeared_words = []
         self.appeared_words = []
 
