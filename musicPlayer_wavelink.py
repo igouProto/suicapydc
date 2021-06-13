@@ -220,7 +220,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         self.bot = bot
         if not hasattr(bot, 'wavelink'):
             self.bot.wavelink = wavelink.Client(bot=self.bot)
-
         self.bot.loop.create_task(self.start_nodes())
 
     async def start_nodes(self):  # connect to a lavalink node
@@ -235,7 +234,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                               identifier='MAIN',
                                               region='Singapore', )
 
-    def get_player(self, obj):
+    def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
             return self.bot.wavelink.get_player(obj.guild.id, cls=WavePlayer, context=obj)
         elif isinstance(obj, discord.Guild):
@@ -309,7 +308,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         author = track.info['author']
         url = track.info['uri']
         embed = discord.Embed(title=f"{title}", url=url)
-        embed.add_field(name='上傳頻道', value=author)
+        embed.add_field(name='上傳者', value=author)
         raw_duration = length
         if track.is_stream:
             duration = '直播'
@@ -539,12 +538,18 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
-    @wavelink.WavelinkMixin.listener('on_track_exception')  # hop to the next track when whatever happened
+    @wavelink.WavelinkMixin.listener('on_track_exception')
     async def onPlayerStop(self, node, payload):
         if payload.player.queue.repeat_flag:
             await payload.player.repeatTrack()
         else:
             await payload.player.advance()
+        # turn off repeat and shuffle is something bad happened (avoids the player being stuck in the limbo of looping the same failed track...perhaps?)
+        if isinstance(payload, wavelink.events.TrackStuck) or isinstance(payload, wavelink.events.TrackException):
+            payload.player.queue.repeat_flag = False
+            payload.player.queue.shuffle_flag = False
+            bounded_channel = self.bot.get_channel(payload.player.bounded_channel)
+            await bounded_channel.send(':warning: 播放中的曲目發生問題，已自動停用循環播放及隨機播放。')
 
     @commands.command(name='join', aliases=['summon'])
     async def _summon(self, ctx, *, channel: t.Optional[discord.VoiceChannel]):
@@ -603,6 +608,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
         if not player.is_connected:
             await player.connect(ctx)
+
+        player.bounded_channel = ctx.message.channel.id
 
         await ctx.send(":mag_right: 正在搜尋`{}`...".format(query))
         await ctx.trigger_typing()
