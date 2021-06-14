@@ -163,9 +163,10 @@ class WavePlayer(wavelink.Player):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
         self.active_music_controller = 0
+        self.controller_registered_time: datetime.datetime
         self.music_controller_is_active = False  # indicates whether there's an active controller panel. For deciding whether to delete text-command messages.
-        self.controller_mode = 0  # 0 = none, 1 = nowplay, 2 = queue
-        self.bounded_channel = 0
+        self.controller_mode = 1  # 1 = nowplay, 2 = queue
+        self.bounded_channel: discord.TextChannel  # txt channel of last command, track error would be sent there.
 
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
         if self.is_connected:
@@ -176,8 +177,6 @@ class WavePlayer(wavelink.Player):
             raise NoVC
 
         await super().connect(channel.id)
-        # self.bounded_channel = channel.id
-        # print(f"player bounded to {self.bounded_channel}")
         return channel
 
     async def teardown(self):  # so we still need to rename this...
@@ -282,7 +281,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         return title, url, progress
 
     #  info embed builders
-    def nowplay_embed(self, ctx, player) -> discord.Embed:
+    def nowplay_embed(self, guild, player) -> discord.Embed:
         track = player.current
         if not track:
             raise NothingIsPlaying
@@ -292,7 +291,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed = discord.Embed(title=f"**{title}**", url=url, description=progress)
 
         embed.set_author(name="現正播放～♪",
-                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+                         icon_url=self.bot.get_guild(guild.id).icon_url)
 
         if track and track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
@@ -302,7 +301,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         return embed
 
-    def new_song_embed(self, ctx, track) -> discord.Embed:
+    def new_song_embed(self, ctx: discord.ext.commands.Context, track) -> discord.Embed:
         title = track.title
         length = track.info['length'] / 1000
         author = track.info['author']
@@ -322,7 +321,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         return embed
 
-    def queue_embed(self, ctx, page, player) -> discord.Embed:
+    def queue_embed(self, guild, page, player) -> discord.Embed:
         index = 0
         list_duration = 0
         full_list = []
@@ -369,23 +368,39 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             embed.set_footer(text='播放器閒置中。請使用.play指令繼續點歌，或使用.pr / .jump指令回到上一首或指定曲目。')
 
         embed.set_author(name=f"現正播放～♪",
-                         icon_url=self.bot.get_guild(ctx.guild.id).icon_url)
+                         icon_url=self.bot.get_guild(guild.id).icon_url)
 
         return embed
 
     # panel updater (for updating the panel while text commands are used)
-    async def nowplay_update(self, ctx):
+    async def nowplay_update(self, ctx: discord.ext.commands.Context):
         player = self.get_player(ctx)
         nowplay_panel = await ctx.fetch_message(player.active_music_controller)
         if nowplay_panel:
             if player.controller_mode == 1:
-                await nowplay_panel.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await nowplay_panel.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
             elif player.controller_mode == 2:
                 page = math.floor(int(player.queue.getPosition) / 10) + 1
-                await nowplay_panel.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+                await nowplay_panel.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
+
+    # auto panel updater
+    @wavelink.WavelinkMixin.listener('on_track_start')
+    async def auto_panel_updater(self, node, payload):
+        player = payload.player
+        bounded_channel = player.bounded_channel
+        try:
+            nowplay_panel = await bounded_channel.fetch_message(player.active_music_controller)
+            if nowplay_panel:
+                if player.controller_mode == 1:
+                    await nowplay_panel.edit(embed=self.nowplay_embed(guild=nowplay_panel.guild, player=player))
+                elif player.controller_mode == 2:
+                    page = math.floor(int(player.queue.getPosition) / 10) + 1
+                    await nowplay_panel.edit(embed=self.queue_embed(guild=nowplay_panel.guild, page=page, player=player))
+        except:
+            pass
 
     # interactive buttons
-    async def nowplay_buttons(self, nowplay, player: WavePlayer, ctx):
+    async def nowplay_buttons(self, nowplay, player: WavePlayer, ctx: discord.ext.commands.Context):
         player.music_controller_is_active = True
         # set the player's controller mode to nowplay (1)
         player.controller_mode = 1
@@ -413,63 +428,58 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 return False
 
         reaction = None
-        while nowplay.id == player.active_music_controller and not player.queue.waiting_for_next:
+        np_disp_id = nowplay.id
+        while np_disp_id == player.active_music_controller and not player.queue.waiting_for_next:
             if str(reaction) == '⏮':
                 if player.position >= 5000:
                     await player.seek(0)
+                    await asyncio.sleep(0.5)
+                    await nowplay.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
                 elif player.queue.position > 0 and not player.queue.waiting_for_next:
                     if player.queue.repeat_flag:
                         player.queue.repeat_flag = False
                     player.queue.position -= 2
                     await player.stop()
-                new_player = self.get_player(ctx)
-                await asyncio.sleep(0.5)
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
             elif str(reaction) == '⏯️':
                 if player.is_paused:
                     await player.set_pause(False)
                 else:
                     await player.set_pause(True)
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await nowplay.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
             elif str(reaction) == '⏭️':
                 if player.queue.getUpcoming or player.queue.shuffle_flag:  # if there's an upcoming song or the shuffle function is on
                     if player.queue.repeat_flag:
                         player.queue.repeat_flag = False
                     await player.stop()
-                    new_player = self.get_player(ctx)
-                    await asyncio.sleep(0.5)
-                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
             elif str(reaction) == '🔂':
                 player.queue.toggleRepeat()
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await nowplay.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
             elif str(reaction) == '🔀':
                 player.queue.toggleShuffle()
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await nowplay.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
             elif str(reaction) == '🔄':
-                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await nowplay.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
             elif str(reaction) == '🔼':  # break to hide the controls
                 # player.active_music_controller = 0
                 break
             elif str(reaction) == '📋':  # switch to queue display mode
                 current_page = math.floor(int(player.queue.getPosition) / 10) + 1
                 await nowplay.clear_reactions()
-                await nowplay.edit(embed=self.queue_embed(ctx=ctx, page=current_page, player=player))
+                await nowplay.edit(embed=self.queue_embed(guild=ctx.guild, page=current_page, player=player))
                 await self.queue_buttons(nowplay, player, page=current_page, ctx=ctx)
                 break
             try:
-                reaction, user = await self.bot.wait_for('reaction_add',
-                                                         timeout=600,
-                                                         check=check)  # close the controller after being idle 10 minutes
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=600, check=check)  # close the controller after being idle 10 minutes
                 await nowplay.remove_reaction(reaction, user)
             except:  # when in doubt, break. whatever.
                 break
         # reset controller status
         # player.active_music_controller = 0
         player.music_controller_is_active = False
-        player.controller_mode = 0
+        player.controller_mode = 1
         await nowplay.clear_reactions()
 
-    async def queue_buttons(self, queue_display, player, page, ctx):
+    async def queue_buttons(self, queue_display, player, page, ctx: discord.ext.commands.Context, mode=1): # mode: 1=with shortcut to nowplay; 0=navi buttons only
         player.music_controller_is_active = True
         # set the player's controller mode to queue (2)
         player.controller_mode = 2
@@ -480,7 +490,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await queue_display.add_reaction('⬅️')
             await queue_display.add_reaction('➡️')
             await queue_display.add_reaction('⏩')
-        await queue_display.add_reaction('🎵')
+        if mode == 1:
+            await queue_display.add_reaction('🎵')
         await queue_display.add_reaction('🔼')
 
         def check(react, usr):
@@ -497,30 +508,31 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 return False
 
         reaction = None
-        while queue_display.id == player.active_music_controller and not player.queue.waiting_for_next:
+        queue_disp_id = queue_display.id
+        while queue_disp_id == player.active_music_controller and not player.queue.waiting_for_next:
             if str(reaction) == '⏪':
                 page = 1
-                await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+                await queue_display.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
             elif str(reaction) == '⬅️':
                 if page > 1:
                     page -= 1
-                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+                    await queue_display.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
             elif str(reaction) == '🔄':
                 page = math.floor(int(player.queue.getPosition) / 10) + 1
-                await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+                await queue_display.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
             elif str(reaction) == '➡️':
                 if page < math.ceil(player.queue.getLength / 10):
                     page += 1
-                    await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+                    await queue_display.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
             elif str(reaction) == '⏩':
                 page = math.ceil(player.queue.getLength / 10)
-                await queue_display.edit(embed=self.queue_embed(ctx=ctx, page=page, player=player))
+                await queue_display.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
             elif str(reaction) == '🔼':  # break to hide the controls (and switch back to nowplay)
-                await queue_display.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await queue_display.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
                 break
             elif str(reaction) == '🎵':  # switch to nowplay display mode
                 await queue_display.clear_reactions()
-                await queue_display.edit(embed=self.nowplay_embed(ctx=ctx, player=player))
+                await queue_display.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
                 await self.nowplay_buttons(queue_display, player, ctx=ctx)
                 break
             try:
@@ -531,12 +543,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # reset controller status
         # player.active_music_controller = 0
         player.music_controller_is_active = False
-        player.controller_mode = 0
+        player.controller_mode = 2
         await queue_display.clear_reactions()
 
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
         print("Lavalink is ready!")
+
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
@@ -548,10 +561,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await payload.player.advance()
         # turn off repeat and shuffle is something bad happened (avoids the player being stuck in the limbo of looping the same failed track...perhaps?)
         if isinstance(payload, wavelink.events.TrackStuck) or isinstance(payload, wavelink.events.TrackException):
-            payload.player.queue.repeat_flag = False
-            payload.player.queue.shuffle_flag = False
-            bounded_channel = self.bot.get_channel(payload.player.bounded_channel)
-            await bounded_channel.send(':warning: 播放中的曲目發生問題，已自動停用循環播放及隨機播放。')
+            if payload.player.queue.repeat_flag or payload.player.queue.shuffle_flag:
+                payload.player.queue.repeat_flag = False
+                payload.player.queue.shuffle_flag = False
+                await payload.player.bounded_channel.send(':warning: 播放中的曲目發生問題，已自動停用循環播放及隨機播放。')
 
     @commands.command(name='join', aliases=['summon'])
     async def _summon(self, ctx, *, channel: t.Optional[discord.VoiceChannel]):
@@ -606,12 +619,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":arrow_left: 已解除連接。")
 
     @commands.command(name='play', aliases=['p'])
-    async def _play(self, ctx, *, query: str):
+    async def _play(self, ctx:discord.ext.commands.Context, *, query: str):
         player = self.get_player(ctx)
         if not player.is_connected:
             await player.connect(ctx)
 
-        player.bounded_channel = ctx.message.channel.id
+        player.bounded_channel = ctx.channel
 
         await ctx.send(":mag_right: 正在搜尋`{}`...".format(query))
         await ctx.trigger_typing()
@@ -651,21 +664,37 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not player.is_connected:
             raise NoVC
 
-        embed = self.nowplay_embed(ctx=ctx, player=player)
+        # update the existing info display instead of opening a new one, if it hadn't been washed too far away
+        # can pass an 'f' if user want to make a new one anyway
+        if hasattr(player, 'controller_registered_time') and 'f' not in args:
+            messages = await player.bounded_channel.history(limit=50, after=player.controller_registered_time).flatten()
+            len_of_msg = 0
+            num_of_msg_with_attachments = 0
+            for item in messages:
+                len_of_msg += int(len(item.content))
+                if item.attachments:
+                    num_of_msg_with_attachments += 1
+            if len_of_msg <= 500 or num_of_msg_with_attachments <= 4:
+                info = await ctx.send('✅ 已更新上方資訊面板。')
+                await self.nowplay_update(ctx=ctx)
+                await asyncio.sleep(5)
+                await ctx.message.delete()
+                await info.delete()
+                return
+
+        embed = self.nowplay_embed(guild=ctx.guild, player=player)
         nowplay = await ctx.send(embed=embed)
+        player.controller_registered_time = nowplay.created_at
 
-        if args and '-nc' in args:  # pass -nc to disable interactive button for this display
-            return
-        else:
-            player.active_music_controller = nowplay.id  # register the current embed as the controller
-            print(f"{nowplay.guild.id}:{player.active_music_controller}")
+        player.active_music_controller = nowplay.id  # register the current embed as the controller
+        player.controller_mode = 1
 
+        if args and 'panel' in args:
             await self.nowplay_buttons(nowplay, player, ctx)  # show the control panel
-
             if (not player.queue.waiting_for_next) and player.is_connected:
-                embed = self.nowplay_embed(ctx=ctx, player=player)
+                embed = self.nowplay_embed(guild=ctx.guild, player=player)
                 now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
-                embed.set_footer(text=f'按鈕已隱藏。用 .np 以叫出新的操作面板。上次更新：{now}')
+                embed.set_footer(text=f'按鈕已隱藏。用 .panel 以叫出新的操作面板。上次更新：{now}')
                 await nowplay.edit(embed=embed)
 
     @_nowplay.error
@@ -675,8 +704,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, NothingIsPlaying):
             await ctx.send(":zzz: 沒有播放中的曲目。")
 
+    @commands.command(name='panel', aliases=['pan'])
+    async def _panel(self, ctx):
+        await ctx.invoke(self.bot.get_command('nowplay'), 'panel')
+
     @commands.command(name='queue', aliases=['q'])
-    async def _queue(self, ctx, page: int = None):
+    async def _queue(self, ctx, page: int = None, *args):
         player = self.get_player(ctx)
 
         if player.queue.getLength == 0:  # if the queue is empty
@@ -691,16 +724,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             # then automatically jump to the page where the current playing track is in,
             page = math.floor(int(player.queue.getPosition) / 10) + 1
 
-        embed = self.queue_embed(ctx=ctx, page=page, player=player)
+        embed = self.queue_embed(guild=ctx.guild, page=page, player=player)
         queue_display = await ctx.send(embed=embed)
+        player.controller_registered_time = queue_display.created_at
+
         player.active_music_controller = queue_display.id  # register the current embed as the controller
-        print(f"{queue_display.guild.id}:{player.active_music_controller}")
-        await self.queue_buttons(queue_display, player, page, ctx)
+        player.controller_mode = 2
+
+        await self.queue_buttons(queue_display, player, page, ctx, mode=0)
 
         if (not player.queue.waiting_for_next) and player.is_connected:
-            embed = self.nowplay_embed(ctx=ctx, player=player)
+            embed = self.queue_embed(guild=ctx.guild, page=page, player=player)
             now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
-            embed.set_footer(text=f'按鈕已隱藏。用 .np 以叫出新的操作面板。上次更新：{now}')
+            embed.set_footer(text=f'按鈕已隱藏。用 .panel 以叫出新的操作面板。上次更新：{now}')
             await queue_display.edit(embed=embed)
 
     @_queue.error
@@ -717,11 +753,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await player.set_pause(True)
         msg = await ctx.send(":pause_button: 暫停！")
-        if player.music_controller_is_active:
-            await self.nowplay_update(ctx)
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
+        await self.nowplay_update(ctx)
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
 
     @_pause.error
     async def _pause_error(self, ctx, exception):
@@ -736,11 +771,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
         await player.set_pause(False)
         msg = await ctx.send(":arrow_forward: 繼續！")
-        if player.music_controller_is_active:
-            await self.nowplay_update(ctx)
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
+        await self.nowplay_update(ctx)
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
 
     @commands.command(name='skip', aliases=['sk'])
     async def _skip(self, ctx, step: int = None):
@@ -761,11 +795,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await player.stop()
         info = ":track_next: 跳過！"
         msg = await ctx.send(info)
-        if player.music_controller_is_active:
-            await self.nowplay_update(ctx)
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
         # await ctx.invoke(self.bot.get_command('nowplay'))
 
     @_skip.error
@@ -798,8 +830,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await player.stop()  # then let it advance 1 step
             info = ":track_previous: 上一首！"
             msg = await ctx.send(info)
-        if player.music_controller_is_active:
-            await self.nowplay_update(ctx)
             await asyncio.sleep(5)
             await msg.delete()
             await ctx.message.delete()
@@ -826,11 +856,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg = await ctx.send(':repeat_one: 單曲循環播放已啟用。')
         else:
             msg = await ctx.send(':arrow_right: 單曲循環播放已停用。')
-        if player.music_controller_is_active:
-            await self.nowplay_update(ctx)
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
+        await self.nowplay_update(ctx)
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
 
     @commands.command(name='shuffle', aliases=['shuf', 'sh'])
     async def _shuffle(self, ctx):
@@ -840,11 +869,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg = await ctx.send(':twisted_rightwards_arrows: 隨機播放已啟用。')
         else:
             msg = await ctx.send(':arrow_right: 隨機播放已停用。')
-        if player.music_controller_is_active:
-            await self.nowplay_update(ctx)
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
+        await self.nowplay_update(ctx)
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
 
     @commands.command(name='remove', aliases=['rm'])
     async def _remove(self, ctx, index: int):
@@ -925,11 +953,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await player.seek(position=seek * 1000)
             msg = await ctx.send(f':fast_forward: 已跳轉至 **{self.time_parser(seek)}**')
             # await ctx.invoke(self.bot.get_command('nowplay'))
-            if player.music_controller_is_active:
-                await self.nowplay_update(ctx)
-                await asyncio.sleep(5)
-                await msg.delete()
-                await ctx.message.delete()
+            await self.nowplay_update(ctx)
+            await asyncio.sleep(5)
+            await msg.delete()
+            await ctx.message.delete()
 
     @_seek.error
     async def _seek_error(self, ctx, exception):
@@ -1029,6 +1056,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             raise NoVC
 
         index = step
+
         if not player.queue.probeForTrack(index):
             raise NoTrackFoundByProbe
 
@@ -1043,11 +1071,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player.queue.waiting_for_next = False
 
         msg = await ctx.send(":track_next: 跳過！\n")
-        if player.music_controller_is_active:
-            await self.nowplay_update(ctx)
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
+        await self.nowplay_update(ctx)
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
 
     @_jump.error
     async def _jump_error(self, ctx, exception):
@@ -1079,10 +1106,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if before.channel is not None:
-            print(f"{before.channel.id} - {len(before.channel.members)} members.")
+            # print(f"{before.channel.id} - {len(before.channel.members)} members.")
             if (self.bot.user in before.channel.members) and len(before.channel.members) <= 1:
                 player = self.bot.wavelink.get_player(before.channel.guild.id)
                 await player.teardown()
+                try:
+                    await player.bounded_channel.send('⬅️ 人都跑光光了，那我也要睡啦（已自動解除連接）。')
+                except:
+                    return
 
 
 def setup(bot):
