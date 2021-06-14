@@ -415,14 +415,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         reaction = None
         while nowplay.id == player.active_music_controller and not player.queue.waiting_for_next:
             if str(reaction) == '⏮':
-                if player.queue.position > 0 and not player.queue.waiting_for_next:
+                if player.position >= 5000:
+                    await player.seek(0)
+                elif player.queue.position > 0 and not player.queue.waiting_for_next:
                     if player.queue.repeat_flag:
                         player.queue.repeat_flag = False
                     player.queue.position -= 2
                     await player.stop()
-                    new_player = self.get_player(ctx)
-                    await asyncio.sleep(0.5)
-                    await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
+                new_player = self.get_player(ctx)
+                await asyncio.sleep(0.5)
+                await nowplay.edit(embed=self.nowplay_embed(ctx=ctx, player=new_player))
             elif str(reaction) == '⏯️':
                 if player.is_paused:
                     await player.set_pause(False)
@@ -784,8 +786,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
 
         if player.queue.waiting_for_next:  # if user decided to go backward while the player is waiting
-            await(player.play(
-                player.queue.probeForTrack(player.queue.position)))  # pick up the current song and play it again
+            await(player.play(player.queue.probeForTrack(player.queue.position)))  # pick up the current song and play it again
             player.queue.waiting_for_next = False  # remember to flip this back to false, cause the player is not waiting for new song now...
         else:
             if not player.queue.getPlayHistory:
@@ -795,8 +796,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 raise NoPrevSong
             player.queue.position -= 2  # step back 2 steps first
             await player.stop()  # then let it advance 1 step
-        info = ":track_previous: 上一首！"
-        msg = await ctx.send(info)
+            info = ":track_previous: 上一首！"
+            msg = await ctx.send(info)
         if player.music_controller_is_active:
             await self.nowplay_update(ctx)
             await asyncio.sleep(5)
