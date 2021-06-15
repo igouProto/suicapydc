@@ -221,6 +221,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             self.bot.wavelink = wavelink.Client(bot=self.bot)
         self.bot.loop.create_task(self.start_nodes())
 
+        self.timerTask = None
+
     async def start_nodes(self):  # connect to a lavalink node
         await self.bot.wait_until_ready()
 
@@ -663,18 +665,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
         if not player.is_connected:
             raise NoVC
-
         # update the existing info display instead of opening a new one, if it hadn't been washed too far away
         # can pass an 'f' if user want to make a new one anyway
-        if hasattr(player, 'controller_registered_time') and 'f' not in args:
-            messages = await player.bounded_channel.history(limit=50, after=player.controller_registered_time).flatten()
-            len_of_msg = 0
-            num_of_msg_with_attachments = 0
-            for item in messages:
-                len_of_msg += int(len(item.content))
-                if item.attachments:
-                    num_of_msg_with_attachments += 1
-            if len_of_msg <= 500 or num_of_msg_with_attachments <= 4:
+        if hasattr(player, 'controller_registered_time') and ('f' not in args):
+            messages = await player.bounded_channel.history(limit=3, after=player.controller_registered_time).flatten()
+            if len(messages) < 2:
                 info = await ctx.send('✅ 已更新上方資訊面板。')
                 await self.nowplay_update(ctx=ctx)
                 await asyncio.sleep(5)
@@ -688,6 +683,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         player.active_music_controller = nowplay.id  # register the current embed as the controller
         player.controller_mode = 1
+
+        # experimental live update panel
+        '''
+        if self.timerTask:
+            self.timerTask.cancel()
+        self.timerTask = self.bot.loop.create_task(self.timer(ctx=ctx))
+        '''
 
         if args and 'panel' in args:
             await self.nowplay_buttons(nowplay, player, ctx)  # show the control panel
@@ -706,7 +708,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @commands.command(name='panel', aliases=['pan'])
     async def _panel(self, ctx):
-        await ctx.invoke(self.bot.get_command('nowplay'), 'panel')
+        await ctx.invoke(self.bot.get_command('nowplay'), 'f', 'panel')
 
     @commands.command(name='queue', aliases=['q'])
     async def _queue(self, ctx, page: int = None, *args):
@@ -734,7 +736,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await self.queue_buttons(queue_display, player, page, ctx, mode=0)
 
         if (not player.queue.waiting_for_next) and player.is_connected:
-            embed = self.queue_embed(guild=ctx.guild, page=page, player=player)
+            embed = self.queue_embed(guild=ctx.guild, page=math.floor(int(player.queue.getPosition) / 10) + 1, player=player)
             now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
             embed.set_footer(text=f'按鈕已隱藏。用 .panel 以叫出新的操作面板。上次更新：{now}')
             await queue_display.edit(embed=embed)
@@ -828,12 +830,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 raise NoPrevSong
             player.queue.position -= 2  # step back 2 steps first
             await player.stop()  # then let it advance 1 step
-            info = ":track_previous: 上一首！"
-            msg = await ctx.send(info)
-            await asyncio.sleep(5)
-            await msg.delete()
-            await ctx.message.delete()
-        # await ctx.invoke(self.bot.get_command('nowplay'))
+        info = ":track_previous: 上一首！"
+        msg = await ctx.send(info)
+        await asyncio.sleep(5)
+        await msg.delete()
+        await ctx.message.delete()
 
     @_previous.error
     async def _previous_error(self, ctx, exception):
@@ -925,7 +926,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             embed.set_thumbnail(url=track.thumb)
 
         await ctx.message.author.send(embed=embed)
-        await ctx.send(":white_check_mark: 已將歌曲資訊傳送到私訊！")
+        msg = await ctx.send(":white_check_mark: 已將歌曲資訊傳送到私訊！")
+        await asyncio.sleep(5)
+        await ctx.message.delete()
+        await msg.delete()
 
     @commands.command(name='seek', aliases=['se'])
     async def _seek(self, ctx, pos: str = None):
@@ -1114,6 +1118,15 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     await player.bounded_channel.send('⬅️ 人都跑光光了，那我也要睡啦（已自動解除連接）。')
                 except:
                     return
+
+    # experimental live panel updater
+    async def timer(self, ctx):
+        pass
+        '''
+        while True:
+            await self.nowplay_update(ctx=ctx)
+            await asyncio.sleep(1)
+        '''
 
 
 def setup(bot):
