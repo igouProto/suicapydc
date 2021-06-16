@@ -67,6 +67,7 @@ class Queue:
         self.shuffle_flag = False
         self.repeat_all_flag = False
         self.waiting_for_next = False  # indicates if the player is waiting for more songs while staying in the vc.
+        self.jumping = False  # indicates whether the user is explicitly jumping to a certain track, avoids jumping to the wrong one when shuffle is on.
 
     def add(self, *args):
         self._queue.extend(args)  # multiple "append"
@@ -87,7 +88,7 @@ class Queue:
         if not self._queue:
             raise EmptyQueue
         self.waiting_for_next = False
-        if self.shuffle_flag == True and self.waiting_for_next is False:
+        if self.shuffle_flag == True and self.waiting_for_next is False and not self.jumping:
             self.position = random.randint(0, self.getLength - 1)
         else:
             self.position += 1
@@ -96,6 +97,7 @@ class Queue:
                 self.waiting_for_next = True
                 self.position -= 1  # move one step back so that the next track can be retrieved when the session is resumed
                 return None
+        self.jumping = False
         return self._queue[self.position]
 
     @property
@@ -117,15 +119,6 @@ class Queue:
         if self.position == 0:  # if it is at the top of the queue then return none.
             return None
         return self._queue[self.position - 1]  # i want to only display the last song
-
-    def probeForTrack(self, index: int):  # probe for track in any position
-        if not self._queue:
-            raise EmptyQueue
-        if index >= self.getLength:
-            return None
-        if index < 0:
-            return None
-        return self._queue[index]
 
     @property
     def getLength(self):
@@ -157,16 +150,25 @@ class Queue:
     def jump(self, index: int):
         self.position = index - 1
 
+    def probeForTrack(self, index: int):  # probe for track in any position
+        if not self._queue:
+            raise EmptyQueue
+        if index >= self.getLength:
+            return None
+        if index < 0:
+            return None
+        return self._queue[index]
 
 class WavePlayer(wavelink.Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.bounded_channel = None # txt channel of last command, track error would be sent there.
         self.queue = Queue()
         self.active_music_controller = 0
         self.controller_registered_time: datetime.datetime
         self.music_controller_is_active = False  # indicates whether there's an active controller panel. For deciding whether to delete text-command messages.
         self.controller_mode = 1  # 1 = nowplay, 2 = queue
-        self.bounded_channel: discord.TextChannel  # txt channel of last command, track error would be sent there.
+        self.repeated_times = 0  # a counter for how many times a song was repeated (cuz i'm bored)
 
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
         if self.is_connected:
@@ -205,12 +207,14 @@ class WavePlayer(wavelink.Player):
             track = self.queue.getNextTrack
             if track is not None:
                 await self.play(track)
+                self.repeated_times = 0
         except:
             pass
 
     async def repeatTrack(self):
         current = self.queue.getCurrentTrack
         await self.play(current)
+        self.repeated_times += 1
 
 
 class Music(commands.Cog, wavelink.WavelinkMixin):
@@ -258,9 +262,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         title = track.title
         length = track.info['length'] / 1000
         url = track.info['uri']
-        raw_pos = player.position / 1000
+        raw_pos = math.floor(player.position / 1000)
         duration = self.time_parser(length)
         pos = self.time_parser(raw_pos)
+        vol = player.volume
 
         # player status display before progress bar
         statdisp = ''  # the space for the status indicators (pause, loop, shuffle buttons)
@@ -280,6 +285,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
             progress = f"{statdisp} ` {progress_bar_disp} ` {pos} / {duration}"
 
+        progress += f' • 🔊 {vol}%'
+
         return title, url, progress
 
     #  info embed builders
@@ -298,8 +305,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if track and track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
 
-        now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
-        embed.set_footer(text=f"上次更新：{now}")
+        footer = f'{datetime.datetime.now().strftime("%m/%d %H:%M:%S")}'
+        if player.queue.repeat_flag:
+            footer += f' • 絕贊循環中 - {player.repeated_times}次'
+        embed.set_footer(text=f"上次更新：{footer}")
 
         return embed
 
@@ -669,7 +678,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # can pass an 'f' if user want to make a new one anyway
         if hasattr(player, 'controller_registered_time') and ('f' not in args):
             messages = await player.bounded_channel.history(limit=3, after=player.controller_registered_time).flatten()
-            if len(messages) < 2:
+            if len(messages) < 3:
                 info = await ctx.send('✅ 已更新上方資訊面板。')
                 await self.nowplay_update(ctx=ctx)
                 await asyncio.sleep(5)
@@ -685,11 +694,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player.controller_mode = 1
 
         # experimental live update panel
-        '''
         if self.timerTask:
             self.timerTask.cancel()
-        self.timerTask = self.bot.loop.create_task(self.timer(ctx=ctx))
-        '''
+        if 'live' in args:
+            self.timerTask = self.bot.loop.create_task(self.timer(ctx=ctx))
 
         if args and 'panel' in args:
             await self.nowplay_buttons(nowplay, player, ctx)  # show the control panel
@@ -890,7 +898,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         track = player.queue.probeForTrack(index)
         player.queue.remove(index)
         await ctx.send(f'🚮 已從播放清單移除 **{track.title}**。輸入 **.queue** 以查看清單。')
-        # await ctx.invoke(self.bot.get_command('queue'))
+        await self.nowplay_update(ctx=ctx)
 
     @_remove.error
     async def _remove_error(self, ctx, exception):
@@ -1045,6 +1053,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player.queue.shuffle_flag = False
             await ctx.send(':arrow_right: 已自動停用隨機播放。')
 
+        await self.nowplay_update(ctx=ctx)
+
     @_clear.error
     async def _clear_error(self, ctx, exception):
         if isinstance(exception, EmptyQueue):
@@ -1067,6 +1077,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player.queue.repeat_flag:
             player.queue.toggleRepeat()
 
+        player.queue.jumping = True
         player.queue.jump(index)
         await player.stop()
 
@@ -1102,6 +1113,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg = await ctx.send(f":loud_sound: 音量調整：**{player.volume}%**") if vol >= vol_before else await ctx.send(f":sound: 音量調整：**{player.volume}%**")
         else:
             msg = await ctx.send(f":sound: 目前音量：**{player.volume}%**")
+        await self.nowplay_update(ctx=ctx)
         await asyncio.sleep(5)
         await msg.delete()
         await ctx.message.delete()
@@ -1121,12 +1133,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     # experimental live panel updater
     async def timer(self, ctx):
-        pass
-        '''
         while True:
             await self.nowplay_update(ctx=ctx)
             await asyncio.sleep(1)
-        '''
 
 
 def setup(bot):
