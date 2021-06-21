@@ -587,10 +587,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await payload.player.advance()
         # turn off repeat and shuffle is something bad happened (avoids the player being stuck in the limbo of looping the same failed track...perhaps?)
         if isinstance(payload, wavelink.events.TrackStuck) or isinstance(payload, wavelink.events.TrackException):
+            footer = ''
+            if isinstance(payload, wavelink.events.TrackStuck):
+                footer = f"Track stucked at {payload.threshold}"
+            elif isinstance(payload, wavelink.events.TrackException):
+                footer = f"Error: {payload.error}"
+            desc = "曲目發生問題，已跳過。"
             if payload.player.queue.repeat_flag or payload.player.queue.shuffle_flag:
                 payload.player.queue.repeat_flag = False
                 payload.player.queue.shuffle_flag = False
-                await payload.player.bounded_channel.send(':warning: 播放中的曲目發生問題，已自動停用循環播放及隨機播放。')
+                desc += ' 已自動停用單曲循環及隨機播放。'
+            embed = discord.Embed(title=":x: 糟了個糕", description=desc)
+            embed.set_footer(text=footer)
+            await payload.player.bounded_channel.send(embed=embed)
 
     @commands.command(name='join', aliases=['summon'])
     async def _summon(self, ctx, *, channel: t.Optional[discord.VoiceChannel]):
@@ -1138,8 +1147,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     # auto disconnect when everyone is gone from the VC
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if before.channel is not None:
-            # print(f"{before.channel.id} - {len(before.channel.members)} members.")
+        if before.channel:
             if (self.bot.user in before.channel.members) and len(before.channel.members) <= 1:
                 player = self.bot.wavelink.get_player(before.channel.guild.id)
                 await player.teardown()
