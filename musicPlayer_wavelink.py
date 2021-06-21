@@ -596,7 +596,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if payload.player.queue.repeat_flag or payload.player.queue.shuffle_flag:
                 payload.player.queue.repeat_flag = False
                 payload.player.queue.shuffle_flag = False
-                desc += ' 已自動停用單曲循環及隨機播放。'
+                desc += '已自動停用單曲循環及隨機播放。'
             embed = discord.Embed(title=":x: 糟了個糕", description=desc)
             embed.set_footer(text=footer)
             await payload.player.bounded_channel.send(embed=embed)
