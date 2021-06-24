@@ -654,7 +654,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":arrow_left: 已解除連接。")
 
     @commands.command(name='play', aliases=['p'])
-    async def _play(self, ctx:discord.ext.commands.Context, *, query: str):
+    async def _play(self, ctx: discord.ext.commands.Context, query: str, *args):
         player = self.get_player(ctx)
         if not player.is_connected:
             await player.connect(ctx)
@@ -666,7 +666,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         #  pre-process the query string  TODO: Try regex match, perhaps??
         if 'https://' not in query:
             query = f'ytsearch:{query}'  # treat non-url queries as youtube search
-
         if '&list=' in query:  # if user attempts to add song with playlist open
             query = query.split('&')[0]  # strips away playlist and other stuff from url (arbitrarily)
             await ctx.send(':information_source: 如要新增播放清單，請在 play 指令後方貼上清單網址。')
@@ -677,16 +676,27 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(':x: 搜尋結果為空。')
             if '/playlist?' in query:
                 await ctx.send(':warning: 此清單可能為私人清單，請檢查播放清單檢視權限。')
+
+        # stuff the songs into the player
         await player.addTrack(ctx=ctx, tracks=tracks)
 
         # get the track info to be displayed
         if '/playlist?' in query:  # if user stuffed a playlist
             track = tracks.tracks[0]
-            await ctx.send(':white_check_mark: 已成功新增播放清單。輸入 **.queue** 以查看。')
+            await ctx.send(f':white_check_mark: 已成功從播放清單新增**{len(tracks.tracks)}**首歌曲。輸入 **.queue** 以查看。')
         else:
             track = tracks[0]
-            embed = self.new_song_embed(ctx=ctx, track=track)
-            msg = await ctx.send(embed=embed)
+
+        # display new song embed
+        await ctx.send(embed=self.new_song_embed(ctx=ctx, track=track))
+
+        # process additional arguments
+        if 'lp' in args or 'loop' in args:
+            if not player.queue.repeat_flag:
+                await ctx.invoke(self.bot.get_command('loop'))
+        if 'shuf' in args or 'shuffle' in args:
+            if not player.queue.shuffle_flag:
+                await ctx.invoke(self.bot.get_command('shuffle'))
 
     @_play.error
     async def _play_error(self, ctx, exception):
@@ -752,10 +762,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed = self.queue_embed(guild=ctx.guild, page=page, player=player)
         queue_display = await ctx.send(embed=embed)
         player.controller_registered_time = queue_display.created_at
-
         player.active_music_controller = queue_display.id  # register the current embed as the controller
         player.controller_mode = 2
-
         player.nowplay_is_visible = True
 
         await self.queue_buttons(queue_display, player, page, ctx, mode=0)
