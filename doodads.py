@@ -211,7 +211,6 @@ class doodads(commands.Cog):
 		await game_panel.edit(embed=embed)
 
 
-
 def setup(bot):
 	bot.add_cog(doodads(bot))
 	print("doodads loaded.")
