@@ -654,7 +654,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":arrow_left: 已解除連接。")
 
     @commands.command(name='play', aliases=['p'])
-    async def _play(self, ctx: discord.ext.commands.Context, query: str, *args):
+    async def _play(self, ctx: discord.ext.commands.Context, *, query: str,):
         player = self.get_player(ctx)
         if not player.is_connected:
             await player.connect(ctx)
