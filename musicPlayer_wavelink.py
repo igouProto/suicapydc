@@ -88,7 +88,7 @@ class Queue:
         if not self._queue:
             raise EmptyQueue
         self.waiting_for_next = False
-        if self.shuffle_flag == True and self.waiting_for_next is False and not self.jumping:
+        if self.shuffle_flag and self.waiting_for_next is False and not self.jumping:
             self.position = random.randint(0, self.getLength - 1)
         else:
             self.position += 1
@@ -159,10 +159,11 @@ class Queue:
             return None
         return self._queue[index]
 
+
 class WavePlayer(wavelink.Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.bounded_channel = None # txt channel of last command, track error would be sent there.
+        self.bounded_channel = None  # txt channel of last command, track error would be sent there.
         self.queue = Queue()
         self.active_music_controller = 0
         self.controller_registered_time = None
@@ -257,10 +258,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         duration.append(f"{seconds:02d}")
         return ":".join(duration)
 
+    # gets rid of markdowns in song titles
+    def title_parser(self, raw_title):
+        if '*' in raw_title:
+            ind = raw_title.index('*')
+            return_title = raw_title[:ind] + '\\' + raw_title[ind:]
+            return return_title
+        else:
+            return raw_title
+
     # progress bar display for nowplay and queue
     def progress_bar(self, track, player):
         # current track information
-        title = track.title
+        title = self.title_parser(track.title)
         length = track.info['length'] / 1000
         url = track.info['uri']
         raw_pos = math.floor(player.position / 1000)
@@ -314,19 +324,20 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         return embed
 
     def new_song_embed(self, ctx: discord.ext.commands.Context, track) -> discord.Embed:
-        title = track.title
+        title = self.title_parser(track.title)
         length = track.info['length'] / 1000
         author = track.info['author']
         url = track.info['uri']
         embed = discord.Embed(title=f"{title}", url=url)
-        embed.add_field(name='上傳者', value=author)
+        # embed.add_field(name='上傳者', value=author)
         raw_duration = length
         if track.is_stream:
             duration = '直播'
         else:
             duration = self.time_parser(length)
-        embed.add_field(name='時長', value=duration, inline=True)
+        # embed.add_field(name='時長', value=duration, inline=True)
         embed.set_author(name=f"{ctx.author.display_name} 已將歌曲加入播放清單～♪", icon_url=ctx.author.avatar_url)
+        embed.description = f"{author}  •  {duration}"
 
         if track.thumb is not None:
             embed.set_thumbnail(url=track.thumb)
@@ -343,7 +354,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 tr_length = 0
             else:
                 tr_length = int(track.info['length'] / 1000)
-            track_info = f"`{index:02d}.` {track.title} `({self.time_parser(tr_length)})`\n"
+            track_info = f"`{index:02d}.` {self.title_parser(track.title)} `({self.time_parser(tr_length)})`\n"
             if index == player.queue.getPosition and player.is_playing:
                 track_info = f"**[{track_info}]({track.info['uri']})**"
             full_list.append(track_info)
@@ -495,7 +506,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await self.queue_buttons(nowplay, player, page=current_page, ctx=ctx)
                 break
             try:
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=600, check=check)  # close the controller after being idle 10 minutes
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=600,
+                                                         check=check)  # close the controller after being idle 10 minutes
                 await nowplay.remove_reaction(reaction, user)
             except:  # when in doubt, break. whatever.
                 break
@@ -505,7 +517,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player.controller_mode = 1
         await nowplay.clear_reactions()
 
-    async def queue_buttons(self, queue_display, player, page, ctx: discord.ext.commands.Context, mode=1): # mode: 1=with shortcut to nowplay; 0=navi buttons only
+    async def queue_buttons(self, queue_display, player, page, ctx: discord.ext.commands.Context,
+                            mode=1):  # mode: 1=with shortcut to nowplay; 0=navi buttons only
         player.music_controller_is_active = True
         # set the player's controller mode to queue (2)
         player.controller_mode = 2
@@ -562,7 +575,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await self.nowplay_buttons(queue_display, player, ctx=ctx)
                 break
             try:
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=600, check=check)  # close the buttons after 30 secs
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=600,
+                                                         check=check)  # close the buttons after 30 secs
                 await queue_display.remove_reaction(reaction, user)
             except:
                 break
@@ -576,7 +590,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def on_node_ready(self, node):
         print("Lavalink is ready!")
 
-
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
     @wavelink.WavelinkMixin.listener('on_track_exception')
@@ -585,7 +598,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await payload.player.repeatTrack()
         else:
             await payload.player.advance()
-        # turn off repeat and shuffle is something bad happened (avoids the player being stuck in the limbo of looping the same failed track...perhaps?)
+        # turn off repeat and shuffle is something bad happened (avoids the player being stuck in the limbo of looping the same failed track)
         if isinstance(payload, wavelink.events.TrackStuck) or isinstance(payload, wavelink.events.TrackException):
             footer = ''
             if isinstance(payload, wavelink.events.TrackStuck):
@@ -596,7 +609,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if payload.player.queue.repeat_flag or payload.player.queue.shuffle_flag:
                 payload.player.queue.repeat_flag = False
                 payload.player.queue.shuffle_flag = False
-                desc += '已自動停用單曲循環及隨機播放。'
+                desc += '已自動停用單曲循環及隨機播放，輸入 .lp 或 .shuf 以重新啟用。'
             embed = discord.Embed(title=":x: 糟了個糕", description=desc)
             embed.set_footer(text=footer)
             await payload.player.bounded_channel.send(embed=embed)
@@ -654,7 +667,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":arrow_left: 已解除連接。")
 
     @commands.command(name='play', aliases=['p'])
-    async def _play(self, ctx: discord.ext.commands.Context, *, query: str,):
+    async def _play(self, ctx: discord.ext.commands.Context, *, query: str, ):
         player = self.get_player(ctx)
         if not player.is_connected:
             await player.connect(ctx)
@@ -689,14 +702,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         # display new song embed
         await ctx.send(embed=self.new_song_embed(ctx=ctx, track=track))
-
-        # process additional arguments
-        if 'lp' in args or 'loop' in args:
-            if not player.queue.repeat_flag:
-                await ctx.invoke(self.bot.get_command('loop'))
-        if 'shuf' in args or 'shuffle' in args:
-            if not player.queue.shuffle_flag:
-                await ctx.invoke(self.bot.get_command('shuffle'))
 
     @_play.error
     async def _play_error(self, ctx, exception):
@@ -769,7 +774,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await self.queue_buttons(queue_display, player, page, ctx, mode=0)
 
         if (not player.queue.waiting_for_next) and player.is_connected:
-            embed = self.queue_embed(guild=ctx.guild, page=math.floor(int(player.queue.getPosition) / 10) + 1, player=player)
+            embed = self.queue_embed(guild=ctx.guild, page=math.floor(int(player.queue.getPosition) / 10) + 1,
+                                     player=player)
             now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
             embed.set_footer(text=f'按鈕已隱藏。用 .panel 以叫出新的操作面板。上次更新：{now}')
             await queue_display.edit(embed=embed)
@@ -856,7 +862,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
 
         if player.queue.waiting_for_next:  # if user decided to go backward while the player is waiting
-            await(player.play(player.queue.probeForTrack(player.queue.position)))  # pick up the current song and play it again
+            await(player.play(
+                player.queue.probeForTrack(player.queue.position)))  # pick up the current song and play it again
             player.queue.waiting_for_next = False  # remember to flip this back to false, cause the player is not waiting for new song now...
         else:
             if not player.queue.getPlayHistory:
@@ -986,7 +993,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 converted_pos = pos.split(':')
                 seek = 0
                 for i in converted_pos:
-                    seek += int(i) * (60 ** (len(converted_pos) - converted_pos.index(i) - 1))  # a:b:c -> (a * 60^2 + b * 60^1 + c * 60^0)
+                    seek += int(i) * (60 ** (len(converted_pos) - converted_pos.index(
+                        i) - 1))  # a:b:c -> (a * 60^2 + b * 60^1 + c * 60^0)
             else:  # if number is directly input
                 seek = int(pos)
 
@@ -1062,7 +1070,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, NothingIsPlaying):
             await ctx.send(":zzz: 沒有播放中的曲目。")
 
-    @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
+    @commands.command(name='clear', aliases=[
+        'cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
     async def _clear(self, ctx):
         player = self.get_player(ctx)
 
@@ -1143,7 +1152,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 vol = 100
             vol_before = player.volume
             await player.set_volume(vol)
-            msg = await ctx.send(f":loud_sound: 音量調整：**{player.volume}%**") if vol >= vol_before else await ctx.send(f":sound: 音量調整：**{player.volume}%**")
+            msg = await ctx.send(f":loud_sound: 音量調整：**{player.volume}%**") if vol >= vol_before else await ctx.send(
+                f":sound: 音量調整：**{player.volume}%**")
         else:
             msg = await ctx.send(f":sound: 目前音量：**{player.volume}%**")
         if player.nowplay_is_visible:
@@ -1169,6 +1179,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         while True:
             await self.nowplay_update(ctx=ctx)
             await asyncio.sleep(1)
+
 
 def setup(bot):
     bot.add_cog(Music(bot))
