@@ -935,7 +935,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         track = player.queue.probeForTrack(index)
         player.queue.remove(index)
-        await ctx.send(f'🚮 已從播放清單移除 **{track.title}**。輸入 **.queue** 以查看清單。')
+        await ctx.send(f'🚮 已從播放清單移除 **{self.title_parser(track.title)}**。輸入 **.queue** 以查看清單。')
         await self.nowplay_update(ctx=ctx)
 
     @_remove.error
