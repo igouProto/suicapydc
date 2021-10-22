@@ -517,8 +517,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player.controller_mode = 1
         await nowplay.clear_reactions()
 
-    async def queue_buttons(self, queue_display, player, page, ctx: discord.ext.commands.Context,
-                            mode=1):  # mode: 1=with shortcut to nowplay; 0=navi buttons only
+    async def queue_buttons(self, queue_display, player, page, ctx: discord.ext.commands.Context,mode=1):  # mode: 1=with shortcut to nowplay; 0=navi buttons only
         player.music_controller_is_active = True
         # set the player's controller mode to queue (2)
         player.controller_mode = 2
@@ -676,12 +675,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await ctx.send(":mag_right: 正在搜尋`{}`...".format(query))
         await ctx.trigger_typing()
+
         #  pre-process the query string  TODO: Try regex match, perhaps??
         if 'https://' not in query:
             query = f'ytsearch:{query}'  # treat non-url queries as youtube search
         if '&list=' in query:  # if user attempts to add song with playlist open
             query = query.split('&')[0]  # strips away playlist and other stuff from url (arbitrarily)
             await ctx.send(':information_source: 如要新增播放清單，請在 play 指令後方貼上清單網址。')
+        if '>' in query or '<' in query:  # if someone knows adding a pair of <> removes the embed, then this is for them
+            query = query.strip('>')
+            query = query.strip('<')
 
         #  get the tracks and add to the player queue
         tracks = await self.bot.wavelink.get_tracks(query)
