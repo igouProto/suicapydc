@@ -2,13 +2,19 @@
 # some functions are stripped
 # new player based on wavelink + lavalink
 import asyncio
+import base64
 import math
+import os
 import random
 import datetime
 import typing as t
 import wavelink
 import discord
 from discord.ext import commands
+
+import pickle  # for dumping the playlist
+from cryptography.fernet import Fernet  # let's try some encryption
+import config
 
 '''
 This cog is my attempt to rewrite the music function with wavelink
@@ -56,6 +62,10 @@ class SeekPositionOutOfBound(commands.CommandError):
 
 
 class AttemptedToSkipOutOfBounds(commands.CommandError):
+    pass
+
+
+class UserCancelledOperation(commands.CommandError):
     pass
 
 
@@ -159,6 +169,10 @@ class Queue:
             return None
         return self._queue[index]
 
+    @property
+    def queue(self):
+        return self._queue
+
 
 class WavePlayer(wavelink.Player):
     def __init__(self, *args, **kwargs):
@@ -171,6 +185,7 @@ class WavePlayer(wavelink.Player):
         self.controller_mode = 1  # 1 = nowplay, 2 = queue
         self.repeated_times = 0  # a counter for how many times a song was repeated (cuz i'm bored)
         self.nowplay_is_visible = True  # indicates if the panel has been washed too far away
+        self.queue_is_using_buttons = False  # indicates if the user is navigating the playlists by the buttons. Prevents embed from updating while they're navigating.
 
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
         if self.is_connected:
@@ -269,7 +284,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     # progress bar display for nowplay and queue
     def progress_bar(self, track, player):
-        # current track information
+        # current player status
         title = self.title_parser(track.title)
         length = track.info['length'] / 1000
         url = track.info['uri']
@@ -278,23 +293,25 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         pos = self.time_parser(raw_pos)
         vol = player.volume
 
-        # player status display before progress bar
-        statdisp = ''  # the space for the status indicators (pause, loop, shuffle buttons)
+        # player status display before progress bar (smth looks like: ⏸️  ───────⚪────────────  01:43 / 04:49 • 🔊 100%)
+        pauseIcon = ''
+        lpShufIcon = ''
         if player.is_paused:
-            statdisp += ' :pause_button: '
+            pauseIcon= ' :pause_button: '
         if player.queue.repeat_flag:
-            statdisp += ' :repeat_one:'
+            lpShufIcon += ' :repeat_one:'
         if player.queue.shuffle_flag:
-            statdisp += ' :twisted_rightwards_arrows:'
+            lpShufIcon += ' :twisted_rightwards_arrows:'
+        statDisp = f'{pauseIcon + lpShufIcon}'
 
-        # the progress bar display
+        # draw the progress bar
         if track.is_stream:
-            progress = f"{statdisp} ` 🔴 LIVE ` "
+            progress = f"{statDisp} ` 🔴 LIVE ` "
         else:
             progress = int((raw_pos / length) * 100 / 5)
             progress_bar = "───────────────────"
             progress_bar_disp = progress_bar[:progress] + '⚪' + progress_bar[progress:]
-            progress = f"{statdisp} ` {progress_bar_disp} ` {pos} / {duration}"
+            progress = f"{statDisp} ` {progress_bar_disp} ` {pos} / {duration}"
 
         progress += f' • 🔊 {vol}%'
 
@@ -318,7 +335,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         footer = f'{datetime.datetime.now().strftime("%m/%d %H:%M:%S")}'
         if player.queue.repeat_flag:
-            footer += f' • 絕贊循環中 - {player.repeated_times}次'
+            footer += f' • 中毒循環中：{player.repeated_times}次'
         embed.set_footer(text=f"上次更新：{footer}")
 
         return embed
@@ -419,7 +436,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 messages_length += len(item.content)
                 if item.embeds or item.attachments:
                     messages_with_embed_or_attatch += 1
-            if len(messages) < 15 and messages_length < 300 and messages_with_embed_or_attatch < 2:
+            if len(messages) < 10 and messages_length < 300 and messages_with_embed_or_attatch < 2:
                 try:
                     nowplay_panel = await bounded_channel.fetch_message(player.active_music_controller)
                     new_embed = None
@@ -427,8 +444,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         if player.controller_mode == 1:
                             new_embed = self.nowplay_embed(guild=nowplay_panel.guild, player=player)
                         elif player.controller_mode == 2:
-                            page = math.floor(int(player.queue.getPosition) / 10) + 1
-                            new_embed = self.queue_embed(guild=nowplay_panel.guild, page=page, player=player)
+                            if not player.queue_is_using_buttons:
+                                page = math.floor(int(player.queue.getPosition) / 10) + 1
+                                new_embed = self.queue_embed(guild=nowplay_panel.guild, page=page, player=player)
                         await nowplay_panel.edit(embed=new_embed)
                         player.nowplay_is_visible = True
                 except:
@@ -436,7 +454,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             else:
                 player.nowplay_is_visible = False
 
-    # interactive buttons
+    # interactive buttons (via giving reactions)
     async def nowplay_buttons(self, nowplay, player: WavePlayer, ctx: discord.ext.commands.Context):
         player.music_controller_is_active = True
         # set the player's controller mode to nowplay (1)
@@ -517,8 +535,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player.controller_mode = 1
         await nowplay.clear_reactions()
 
-    async def queue_buttons(self, queue_display, player, page, ctx: discord.ext.commands.Context,mode=1):  # mode: 1=with shortcut to nowplay; 0=navi buttons only
+    async def queue_buttons(self, queue_display, player, page, ctx: discord.ext.commands.Context, mode=1):  # mode: 1=with shortcut to nowplay; 0=navi buttons only
         player.music_controller_is_active = True
+        player.queue_is_using_buttons = True
         # set the player's controller mode to queue (2)
         player.controller_mode = 2
         # interactive buttons
@@ -574,15 +593,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await self.nowplay_buttons(queue_display, player, ctx=ctx)
                 break
             try:
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=600,
-                                                         check=check)  # close the buttons after 30 secs
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=30, check=check)  # close the buttons after 30 secs
                 await queue_display.remove_reaction(reaction, user)
             except:
                 break
         # reset controller status
         # player.active_music_controller = 0
         player.music_controller_is_active = False
+        player.queue_is_using_buttons = False
         player.controller_mode = 2
+        await queue_display.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
         await queue_display.clear_reactions()
 
     @wavelink.WavelinkMixin.listener()
@@ -597,6 +617,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await payload.player.repeatTrack()
         else:
             await payload.player.advance()
+
         # turn off repeat and shuffle is something bad happened (avoids the player being stuck in the limbo of looping the same failed track)
         if isinstance(payload, wavelink.events.TrackStuck) or isinstance(payload, wavelink.events.TrackException):
             footer = ''
@@ -604,11 +625,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 footer = f"Track stucked at {payload.threshold}"
             elif isinstance(payload, wavelink.events.TrackException):
                 footer = f"Error: {payload.error}"
-            desc = "曲目發生問題，已跳過。"
+            desc = "曲目發生問題，已跳過。可嘗試使用 .pr 重新播放。"
             if payload.player.queue.repeat_flag or payload.player.queue.shuffle_flag:
                 payload.player.queue.repeat_flag = False
                 payload.player.queue.shuffle_flag = False
-                desc += '已自動停用單曲循環及隨機播放，輸入 .lp 或 .shuf 以重新啟用。'
+                desc += '\n已自動停用單曲循環及隨機播放，輸入 .lp 或 .shuf 以重新啟用。'
             embed = discord.Embed(title=":x: 糟了個糕", description=desc)
             embed.set_footer(text=footer)
             await payload.player.bounded_channel.send(embed=embed)
@@ -670,7 +691,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
         if not player.is_connected:
             await player.connect(ctx)
-
         player.bounded_channel = ctx.channel
 
         await ctx.send(":mag_right: 正在搜尋`{}`...".format(query))
@@ -702,7 +722,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(f':white_check_mark: 已成功從播放清單新增**{len(tracks.tracks)}**首歌曲。輸入 **.queue** 以查看。')
         else:
             track = tracks[0]
-
         # display new song embed
         await ctx.send(embed=self.new_song_embed(ctx=ctx, track=track))
 
@@ -723,7 +742,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         player.active_music_controller = nowplay.id  # register the current embed as the controller
         player.controller_mode = 1
-
         player.nowplay_is_visible = True
 
         # experimental live update panel
@@ -731,6 +749,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             self.timerTask.cancel()
         if 'live' in args:
             self.timerTask = self.bot.loop.create_task(self.timer(ctx=ctx))
+            await ctx.send(':information_source: 此面板將會每30秒更新一次。')
 
         if args and 'panel' in args:
             await self.nowplay_buttons(nowplay, player, ctx)  # show the control panel
@@ -780,7 +799,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             embed = self.queue_embed(guild=ctx.guild, page=math.floor(int(player.queue.getPosition) / 10) + 1,
                                      player=player)
             now = datetime.datetime.now().strftime("%m/%d %H:%M:%S")
-            embed.set_footer(text=f'按鈕已隱藏。用 .panel 以叫出新的操作面板。上次更新：{now}')
+            embed.set_footer(text=f'按鈕已隱藏。用 .queue 以叫出新的按鈕。上次更新：{now}')
             await queue_display.edit(embed=embed)
 
     @_queue.error
@@ -938,7 +957,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         track = player.queue.probeForTrack(index)
         player.queue.remove(index)
-        await ctx.send(f'🚮 已從播放清單移除 **{self.title_parser(track.title)}**。輸入 **.queue** 以查看清單。')
+        await ctx.send(f'🚮 已從播放清單移除 `{self.title_parser(track.title)}`。輸入 **.queue** 以查看清單。')
         await self.nowplay_update(ctx=ctx)
 
     @_remove.error
@@ -1073,8 +1092,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if isinstance(exception, NothingIsPlaying):
             await ctx.send(":zzz: 沒有播放中的曲目。")
 
-    @commands.command(name='clear', aliases=[
-        'cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
+    @commands.command(name='clear', aliases=['cl'])  # clears everything in the queue (but keeps the one's playing if player's not waiting)
     async def _clear(self, ctx):
         player = self.get_player(ctx)
 
@@ -1165,6 +1183,115 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await msg.delete()
             await ctx.message.delete()
 
+    # export the current queue as text file and dump
+    @commands.command(name='export', aliases=['exp'])
+    async def _export(self, ctx, *name):
+        player = self.get_player(ctx)
+
+        await ctx.send('🖨️ 正在匯出播放清單...')
+        await ctx.trigger_typing()
+
+        if not name:
+            path_txt = f'{ctx.guild.id}_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.txt'
+            path_sup = f'{ctx.guild.id}_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.sup'  # for the list dump. sup: "SUICA Playlist"
+        else:
+            path_txt = f'{name}_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.txt'
+            path_sup = f'{name}_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.sup'  # for the list dump
+
+        queue = player.queue.getFullQueue
+        if len(queue) == 0:
+            raise EmptyQueue
+
+        with open(path_txt, 'w') as file:
+            for track in player.queue.getFullQueue:
+                file.write(f"{track.info['title']}: {track.info['uri']}\n")
+        await ctx.send(file=discord.File(path_txt))
+        os.remove(path_txt)
+
+        # generate and encrypt the playlist dump
+        with open(path_sup, 'wb') as file_sup:
+            pickle.dump(player.queue.getFullQueue, file_sup)
+        with open (path_sup, 'rb') as file_sup_raw:
+            original = file_sup_raw.read()
+        token = config.getToken().encode("UTF-8")  # use the bot's token as the key
+        token_as_key = base64.urlsafe_b64encode(token)[:43] + b'='  # the typical length generated by fernet is 44
+        fernet = Fernet(token_as_key)
+        encrypted = fernet.encrypt(original)
+
+        with open(path_sup, 'wb') as file_sup_encrypted:
+            file_sup_encrypted.write(encrypted)
+        await ctx.send(file=discord.File(path_sup))
+        os.remove(path_sup)
+        await ctx.send(':white_check_mark: 匯出成功。')
+
+    @_export.error
+    async def _export_error(self, ctx, exception):
+        if isinstance(exception, EmptyQueue):
+            await ctx.send(':u7a7a: 播放清單為空。')
+
+    # import the dump as playlist cuz it's faster
+    @commands.command(name='import', aliases=['imp'])
+    async def _import(self, ctx):
+        await ctx.send('📥 請上傳匯出的清單（使用.exp指令產生的**.sup檔**），或輸入c以取消。')
+
+        def check(message):
+            if message.author.id == ctx.author.id:
+                if message.content == 'c':
+                    raise UserCancelledOperation
+                else:
+                    attachments = message.attachments
+                    if len(attachments) == 0:
+                        return False
+                    else:
+                        attachment = attachments[0]
+                        return attachment.filename.endswith('.sup')
+            else:
+                return False
+        try:
+            msg = await self.bot.wait_for('message', check=check, timeout=15)
+            imported_list = msg.attachments[0]
+            await imported_list.save(imported_list.filename)
+        except asyncio.TimeoutError:
+            await ctx.send(':x: 操作逾時。')
+        except UserCancelledOperation:
+            await ctx.send(':x: 操作已取消。')
+        else:
+            # same procedure as .play
+            player = self.get_player(ctx)
+            if not player.is_connected:
+                await player.connect(ctx)
+            player.bounded_channel = ctx.channel
+
+            await ctx.send('📝 正在匯入...')
+            await ctx.trigger_typing()
+
+            with open(imported_list.filename, 'rb') as file:
+                encrypted = file.read()
+            token = config.getToken().encode("UTF-8")  # use the bot's token as the key
+            token_as_key = base64.urlsafe_b64encode(token)[:43] + b'='  # the typical length generated by fernet is 44
+            fernet = Fernet(token_as_key)
+            try:
+                decrypted = fernet.decrypt(encrypted)
+                with open(imported_list.filename, 'wb') as file:
+                    file.write(decrypted)
+                with open(imported_list.filename, 'rb') as file:
+                    loaded_list = pickle.load(file)
+                    player.queue.queue.extend(loaded_list)
+                await ctx.send(f':white_check_mark: 匯入成功。輸入**.queue**以查看播放清單。')
+                os.remove(imported_list.filename)
+            except:
+                os.remove(imported_list.filename)
+
+            if not player.is_playing:
+                await player.startPlaying()
+
+    @_import.error
+    async def _import_error(self, ctx, exception):
+        if isinstance(exception, NoVC):
+            await ctx.send(":question: 窩不知道你在哪裡QQ")
+        else:
+            await ctx.send(":x: 匯入失敗。")
+
     # auto disconnect when everyone is gone from the VC
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -1177,11 +1304,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 except:
                     return
 
-    # experimental live panel updater
+    # experimental live panel updater (updates every 30 seconds)
     async def timer(self, ctx):
         while True:
             await self.nowplay_update(ctx=ctx)
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)
 
 
 def setup(bot):
