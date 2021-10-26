@@ -6,3 +6,5 @@ beautifulsoup4==4.9.1
 discord~=1.0.1
 bs4~=0.0.1
 wavelink~=0.9.6
+yfinance>=0.1.59
+cryptography>=35.0.0

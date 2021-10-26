@@ -243,18 +243,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         self.bot.loop.create_task(self.start_nodes())
 
         self.timerTask = None
+        self.node = None
 
     async def start_nodes(self):  # connect to a lavalink node
         await self.bot.wait_until_ready()
 
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
-        await self.bot.wavelink.initiate_node(host='127.0.0.1',
-                                              port=2333,
-                                              rest_uri='http://127.0.0.1:2333',
-                                              password='igproto',
-                                              identifier='MAIN',
-                                              region='Singapore', )
+        self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
+                                                          port=2333,
+                                                          rest_uri='http://127.0.0.1:2333',
+                                                          password='igproto',
+                                                          identifier='MAIN',
+                                                          region='Singapore', )
 
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
@@ -326,8 +327,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         title, url, progress = self.progress_bar(track, player)
 
         embed = discord.Embed(title=f"**{title}**", url=url, description=progress)
-
-        embed.set_author(name="現正播放～♪",
+        embed.set_author(name=f"現正播放～♪",  # [{self.bot.get_channel(player.channel_id).name}]",
                          icon_url=self.bot.get_guild(guild.id).icon_url)
 
         if track and track.thumb is not None:
@@ -336,6 +336,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         footer = f'{datetime.datetime.now().strftime("%m/%d %H:%M:%S")}'
         if player.queue.repeat_flag:
             footer += f' • 中毒循環中：{player.repeated_times}次'
+
         embed.set_footer(text=f"上次更新：{footer}")
 
         return embed
@@ -1303,6 +1304,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     await player.bounded_channel.send('⬅️ 人都跑光光了，那我也要睡啦（已自動解除連接）。')
                 except:
                     return
+
+    # try to do a quick pause and resume if the VC's region changed
+    @commands.Cog.listener()
+    async def on_guild_channel_update(self, before, after):
+        if isinstance(before, discord.VoiceChannel):
+            if self.bot.user in before.members:
+                player = self.bot.wavelink.get_player(before.guild.id)
+                await player.set_pause(True)
+                await asyncio.sleep(1)
+                await player.set_pause(False)
 
     # experimental live panel updater (updates every 30 seconds)
     async def timer(self, ctx):
