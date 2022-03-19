@@ -15,18 +15,23 @@ def getToken():
     except IOError as e:
         token = os.environ["TOKEN"]
         print("Token loaded from os environment variable: {}".format(token))
+    except KeyError as e:
+        print('config.json not found or OS Environment Variable not found [Token].')
     return token
 
 
-def getPrefix():
+def getDefaultPrefix():
     try:
-        with open('config.json', 'r') as file:
+        with open('config.json', 'r') as file:  # load the default
             configs = json.load(file)
             prefix = configs["prefix"]
-            print("Prefix loaded from config.json: \'{}\'".format(prefix))
+            # print("Default prefix loaded from config.json: \'{}\'".format(prefix))
     except IOError as e:
         prefix = os.environ["PREFIX"]
         print("Prefix loaded from os environment variable: \'{}\'".format(prefix))
+    except KeyError as e:
+        print('config file or OS Environment Variable not found [Prefix]. Using default prefix(".")')
+        prefix = '.'
     return prefix
 
 

@@ -17,6 +17,21 @@ class adminFunctions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.command(name="ping")  # ping function, used for testing the bot's respond time.
+    async def _ping(self, ctx):
+        t = await ctx.send('正在測量........')
+        # the values
+        botLatency = round(self.bot.latency * 1000)
+        cmdLatency = round((t.created_at - ctx.message.created_at).total_seconds() * 1000)
+        '''
+        voiceLatency = "--"
+        if ctx.voice_client is not None:
+            voiceLatency = round(ctx.voice_client.latency * 1000)
+        '''
+        # the embed
+        embed = discord.Embed(title=":clipboard: 西瓜的各種Ping", description=f'💓 Dokidoki Discord API Heartbeat ... **{botLatency}**ms\n⏱️ 總反應時間 ... **{cmdLatency}**ms')
+        await ctx.send(embed=embed)
+
     @commands.is_owner()
     @commands.command(name="restart", aliases=['res'])  # restart the bot
     async def _restart(self, ctx):
@@ -90,23 +105,6 @@ class adminFunctions(commands.Cog):
         self.bot.reload_extension('doodads')
         self.bot.reload_extension('musicPlayer_wavelink')
         await ctx.send('完成。')
-
-    @commands.command(name="ping")  # ping function, used for testing the bot's respond time.
-    async def _ping(self, ctx):
-        t = await ctx.send('正在測量........')
-        # the values
-        botLatency = round(self.bot.latency * 1000)
-        cmdLatency = round((t.created_at - ctx.message.created_at).total_seconds() * 1000)
-        '''
-        voiceLatency = "--"
-        if ctx.voice_client is not None:
-            voiceLatency = round(ctx.voice_client.latency * 1000)
-        '''
-        # the embed
-        embed = discord.Embed(title=":clipboard: 西瓜的各種Ping")
-        embed.add_field(name="WebSocket延遲", value="{} ms".format(botLatency))
-        embed.add_field(name="反應時間", value="{} ms".format(cmdLatency))
-        await ctx.send(embed=embed)
 
     @commands.command(name="manual", aliases=['man', 'help'])  # print the manual out
     async def _manual(self, ctx):

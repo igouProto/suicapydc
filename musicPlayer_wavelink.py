@@ -105,7 +105,7 @@ class Queue:
             if self.position > len(self._queue) - 1:
                 # print("reached end of queue.")
                 self.waiting_for_next = True
-                self.position -= 1  # move one step back so that the next track can be retrieved when the session is resumed
+                self.position -= 1  # move one step back so the next track can be retrieved when the session is resumed
                 return None
         self.jumping = False
         return self._queue[self.position]
@@ -648,7 +648,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         elif isinstance(exception, NoVC):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
 
-    @commands.command(name='disconnect', aliases=['dc'])
+    @commands.command(name='disconnect', aliases=['dc', 'leave'])
     async def _disconnect(self, ctx, *args):
         player = self.get_player(ctx)
         if (player.is_paused or player.is_playing) and "f" not in args:  # pass f to force disconnect
@@ -1261,7 +1261,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player = self.get_player(ctx)
             if not player.is_connected:
                 await player.connect(ctx)
-            player.bounded_channel = ctx.channel
 
             await ctx.send('📝 正在匯入...')
             await ctx.trigger_typing()
