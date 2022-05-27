@@ -58,10 +58,12 @@ def getPortal():
             configs = json.load(file)
             portal = configs["portal_id"]
             print("Portal channel loaded from config.json: {}".format(portal))
+            return portal
     except IOError as e:
         portal = os.environ["PORTAL"]
         print("Portal channel loaded from os environment variable: {}".format(portal))
-    return portal
+        return portal
+
 
 
 def getErrChannel():
@@ -70,6 +72,6 @@ def getErrChannel():
             configs = json.load(file)
             portal = configs["error_collecting_id"]
             print("Error collecting channel loaded from config.json: {}".format(portal))
+            return portal
     except IOError as e:
         pass
-    return portal
