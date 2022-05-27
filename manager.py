@@ -62,9 +62,8 @@ async def wakeup():
 		await asyncio.sleep(450)
 
 
-
 def setup(bot):
 	bot.add_cog(manager(bot))
 	print("Manager loaded.")
-	# bot.loop.create_task(wakeup())
-	# print("Wakeup periodic task initialized.")
+	bot.loop.create_task(wakeup())
+	print("Wakeup periodic task initialized.")
