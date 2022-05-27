@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 from discord.ext import commands
 from time import gmtime, strftime, localtime
@@ -18,7 +20,7 @@ class manager(commands.Cog):
 		self.backstage = int(config.getBackstage())
 		self.error_channel = int(config.getErrChannel())
 
-		self.debug = False
+		self.debug = True
 
 	@commands.Cog.listener()
 	async def on_ready(self):
@@ -52,13 +54,13 @@ class manager(commands.Cog):
 			self.debug = True
 			await ctx.send('偵錯模式已開啟，查看後台以獲取錯誤訊息。')
 
-'''
+
 ###loop tasks to keep heroku from putting my bot to sleep## no need i moved to my own machine :D
 async def wakeup():
 	while(1):
 		a = 1 + 1  #yep, simple task to keep the bot up ;)
 		await asyncio.sleep(450)
-'''
+
 
 
 def setup(bot):

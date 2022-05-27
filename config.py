@@ -12,12 +12,13 @@ def getToken():
             configs = json.load(file)
             token = configs["token"]
             print("Token loaded from config.json: {}".format(token))
+            return token
     except IOError as e:
         token = os.environ["TOKEN"]
         print("Token loaded from os environment variable: {}".format(token))
+        return token
     except KeyError as e:
         print('config.json not found or OS Environment Variable not found [Token].')
-    return token
 
 
 def getDefaultPrefix():

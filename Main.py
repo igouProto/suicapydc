@@ -11,7 +11,7 @@ This is the main program of the bot, it creates a bot instance, loads all the ex
 print("Booting SUICA...")  # totally unnecessary but makes the booting sequence look cooler UwU
 bot = commands.Bot(command_prefix=config.getDefaultPrefix())
 TOKEN = config.getToken()
-config.version = '2.13.2'
+config.version = '2.13.3'
 
 # TODO (igouP): Gather all the extensions and use one single statement to load all of them.
 bot.load_extension('manager')
