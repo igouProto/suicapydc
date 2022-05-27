@@ -18,7 +18,7 @@ class manager(commands.Cog):
 		self.bot = bot
 		self.version = config.getVersion()
 		self.backstage = int(config.getBackstage())
-		self.error_channel = int(config.getErrChannel())
+		# self.error_channel = int(config.getErrChannel())
 
 		self.debug = True
 
