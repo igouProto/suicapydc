@@ -7,6 +7,7 @@ import math
 import os
 import random
 import datetime
+import time
 import typing as t
 import wavelink
 import discord
@@ -187,6 +188,8 @@ class WavePlayer(wavelink.Player):
         self.nowplay_is_visible = True  # indicates if the panel has been washed too far away
         self.queue_is_using_buttons = False  # indicates if the user is navigating the playlists by the buttons. Prevents embed from updating while they're navigating.
 
+        self.last_query = None
+
     async def connect(self, ctx, channel=None):  # overloaded WV;s player connect
         if self.is_connected:
             raise AlreadyConnected
@@ -244,18 +247,28 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         self.timerTask = None
         self.node = None
+        self.nodeIdentifierBits = 16
 
     async def start_nodes(self):  # connect to a lavalink node
         await self.bot.wait_until_ready()
 
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
+
         self.node = await self.bot.wavelink.initiate_node(host='lava.link',
                                                           port=80,
                                                           rest_uri='http://lava.link:80',
                                                           password='anything',
                                                           region='singapore',
+                                                          identifier=f"{random.getrandbits(self.nodeIdentifierBits)}")
+        '''
+        self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
+                                                          port=2333,
+                                                          rest_uri='http://127.0.0.1:2333',
+                                                          password='igproto',
+                                                          region='singapore',
                                                           identifier='MAIN')
+        '''
 
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
@@ -318,7 +331,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         return title, url, progress
 
-    #  info embed builders
+    # info embed builders
     def nowplay_embed(self, guild, player) -> discord.Embed:
         track = player.current
         if not track:
@@ -610,7 +623,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
-        print("Lavalink is ready!")
+        print(f"Lavalink is ready! Node identifier: {node.identifier}")
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
@@ -709,6 +722,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             query = query.strip('>')
             query = query.strip('<')
 
+        player.last_query = query  # save the query if there's error
+
         #  get the tracks and add to the player queue
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
@@ -732,6 +747,38 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _play_error(self, ctx, exception):
         if isinstance(exception, NoVC):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
+        '''
+        if isinstance(exception, wavelink.ZeroConnectedNodes):
+            await ctx.send("🕒 正在重新連接節點...")
+            player = self.get_player(ctx)
+            holded_query = player.last_query
+            try:
+                self.node = await self.bot.wavelink.initiate_node(host='lava.link',
+                                                                  port=80,
+                                                                  rest_uri='http://lava.link:80',
+                                                                  password='anything',
+                                                                  region='singapore', identifier=f"{random.getrandbits(8)}")
+                await ctx.invoke(self.bot.get_command('play'), f"{holded_query}")
+            except:
+                await ctx.send(':sob: 哭啊！！！')
+                return
+        '''
+
+    @commands.command(name='reconnect', aliases=['rec'])  # try to make a manual reconnect cmd
+    async def _reconenct(self, ctx):
+        await ctx.send("🕒 正在重新連接節點...")
+        try:
+            self.node = None
+            self.node = await self.bot.wavelink.initiate_node(host='lava.link',
+                                                              port=80,
+                                                              rest_uri='http://lava.link:80',
+                                                              password='anything',
+                                                              region='singapore', identifier=f"{random.getrandbits(self.nodeIdentifierBits)}")
+            await ctx.send(":white_check_mark: 完成！")
+        except Exception as exc:
+            await ctx.send(':sob: 哭啊！！！')
+            await ctx.send(f"```{exc}```")
+            return
 
     @commands.command(name='nowplay', aliases=['np'])  # now with interactive controller, yay
     async def _nowplay(self, ctx, *args: str):
