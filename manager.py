@@ -20,7 +20,7 @@ class manager(commands.Cog):
 		self.backstage = int(config.getBackstage())
 		# self.error_channel = int(config.getErrChannel())
 
-		self.debug = True
+		self.debug = False
 
 	@commands.Cog.listener()
 	async def on_ready(self):
