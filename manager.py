@@ -55,11 +55,13 @@ class manager(commands.Cog):
 			await ctx.send('偵錯模式已開啟，查看後台以獲取錯誤訊息。')
 
 
-###loop tasks to keep heroku from putting my bot to sleep## no need i moved to my own machine :D
+# loop tasks to keep heroku from putting my bot to sleep## no need i moved to my own machine :D
+''' no need cuz there's kaffeine now
 async def wakeup():
 	while(1):
-		a = 1 + 1  #yep, simple task to keep the bot up ;)
+		a = 1 + 1  # yep, simple task to keep the bot up ;)
 		await asyncio.sleep(450)
+'''
 
 
 def setup(bot):
