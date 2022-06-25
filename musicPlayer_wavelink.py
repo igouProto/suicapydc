@@ -255,21 +255,28 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
 
+        '''
         self.node = await self.bot.wavelink.initiate_node(host='lava.link',
                                                           port=80,
                                                           rest_uri='http://lava.link:80',
                                                           password='anything',
-                                                          region='singapore',
+                                                          region='hongkong',
                                                           identifier=f"{random.getrandbits(self.nodeIdentifierBits)}")
+        '''
         '''
         self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
                                                           port=2333,
                                                           rest_uri='http://127.0.0.1:2333',
                                                           password='igproto',
-                                                          region='singapore',
+                                                          region='us-east',
                                                           identifier='MAIN')
         '''
-
+        self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
+                                                          port=80,
+                                                          rest_uri='http://suicalavalink.herokuapp.com:80',
+                                                          password=config.getLavalinkPw(),
+                                                          region='us-east',
+                                                          identifier='MAIN')
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
             return self.bot.wavelink.get_player(obj.guild.id, cls=WavePlayer, context=obj)
@@ -721,8 +728,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if '>' in query or '<' in query:  # if someone knows adding a pair of <> removes the embed, then this is for them
             query = query.strip('>')
             query = query.strip('<')
-
-        player.last_query = query  # save the query if there's error
 
         #  get the tracks and add to the player queue
         tracks = await self.bot.wavelink.get_tracks(query)

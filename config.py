@@ -65,7 +65,6 @@ def getPortal():
         return portal
 
 
-
 def getErrChannel():
     try:
         with open('config.json', 'r') as file:
@@ -75,3 +74,15 @@ def getErrChannel():
             return portal
     except IOError as e:
         pass
+
+def getLavalinkPw():
+    try:
+        with open('config.json', 'r') as file:
+            configs = json.load(file)
+            password = configs["lavalink_pw"]
+            print("lavalink password loaded from config.json: {}".format(password))
+            return password
+    except IOError as e:
+        password = os.environ["LAVAPW"]
+        print("lavalink password loaded from os environment variable: {}".format(password))
+        return password
