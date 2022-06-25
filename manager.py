@@ -20,7 +20,7 @@ class manager(commands.Cog):
 		self.backstage = int(config.getBackstage())
 		# self.error_channel = int(config.getErrChannel())
 
-		self.debug = False
+		self.debug = True
 
 	@commands.Cog.listener()
 	async def on_ready(self):
@@ -67,5 +67,5 @@ async def wakeup():
 def setup(bot):
 	bot.add_cog(manager(bot))
 	print("Manager loaded.")
-	bot.loop.create_task(wakeup())
+	# bot.loop.create_task(wakeup())
 	print("Wakeup periodic task initialized.")
