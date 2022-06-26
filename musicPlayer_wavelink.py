@@ -276,7 +276,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                                           rest_uri='http://suicalavalink.herokuapp.com:80',
                                                           password=config.getLavalinkPw(),
                                                           region='us-east',
-                                                          identifier='MAIN')
+                                                          identifier=f'{random.getrandbits(self.nodeIdentifierBits)}')
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
             return self.bot.wavelink.get_player(obj.guild.id, cls=WavePlayer, context=obj)
@@ -774,11 +774,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await ctx.send("🕒 正在重新連接節點...")
         try:
             self.node = None
-            self.node = await self.bot.wavelink.initiate_node(host='lava.link',
+            self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
                                                               port=80,
-                                                              rest_uri='http://lava.link:80',
-                                                              password='anything',
-                                                              region='singapore', identifier=f"{random.getrandbits(self.nodeIdentifierBits)}")
+                                                              rest_uri='http://suicalavalink.herokuapp.com:80',
+                                                              password=config.getLavalinkPw(),
+                                                              region='us-east',
+                                                              identifier=f'{random.getrandbits(self.nodeIdentifierBits)}')
             await ctx.send(":white_check_mark: 完成！")
         except Exception as exc:
             await ctx.send(':sob: 哭啊！！！')
