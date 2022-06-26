@@ -255,13 +255,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
 
+        '''
         self.node = await self.bot.wavelink.initiate_node(host='lava.link',
                                                           port=80,
                                                           rest_uri='http://lava.link:80',
                                                           password='anything',
                                                           region='hongkong',
                                                           identifier=f"{random.getrandbits(self.nodeIdentifierBits)}")
-
+        '''
         '''
         self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
                                                           port=2333,
@@ -269,14 +270,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                                           password='igproto',
                                                           region='us-east',
                                                           identifier='MAIN')
-        
+        '''
         self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
                                                           port=80,
                                                           rest_uri='http://suicalavalink.herokuapp.com:80',
                                                           password=config.getLavalinkPw(),
                                                           region='us-east',
                                                           identifier='MAIN')
-        '''
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
             return self.bot.wavelink.get_player(obj.guild.id, cls=WavePlayer, context=obj)
@@ -1354,7 +1354,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     # auto disconnect when everyone is gone from the VC
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if before.channel:
+        if before.channel and before.channel.guild.id != 990322976119468052:  # heroku keeps on shutting down my connection so I need to make a channel for suica to loop songs forever as a workaround.
             if (self.bot.user in before.channel.members) and len(before.channel.members) <= 1:
                 player = self.bot.wavelink.get_player(before.channel.guild.id)
                 await player.teardown()
