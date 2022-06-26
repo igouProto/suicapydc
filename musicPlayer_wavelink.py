@@ -729,6 +729,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             query = query.strip('>')
             query = query.strip('<')
 
+        player.last_query = query
+
         #  get the tracks and add to the player queue
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
@@ -752,7 +754,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _play_error(self, ctx, exception):
         if isinstance(exception, NoVC):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
-        '''
         if isinstance(exception, wavelink.ZeroConnectedNodes):
             await ctx.send("🕒 正在重新連接節點...")
             player = self.get_player(ctx)
@@ -767,7 +768,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             except:
                 await ctx.send(':sob: 哭啊！！！')
                 return
-        '''
 
     @commands.command(name='reconnect', aliases=['rec'])  # try to make a manual reconnect cmd
     async def _reconenct(self, ctx):
