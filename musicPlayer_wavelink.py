@@ -255,14 +255,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
 
-        '''
         self.node = await self.bot.wavelink.initiate_node(host='lava.link',
                                                           port=80,
                                                           rest_uri='http://lava.link:80',
                                                           password='anything',
                                                           region='hongkong',
                                                           identifier=f"{random.getrandbits(self.nodeIdentifierBits)}")
-        '''
+
         '''
         self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
                                                           port=2333,
@@ -270,13 +269,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                                           password='igproto',
                                                           region='us-east',
                                                           identifier='MAIN')
-        '''
+        
         self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
                                                           port=80,
                                                           rest_uri='http://suicalavalink.herokuapp.com:80',
                                                           password=config.getLavalinkPw(),
                                                           region='us-east',
-                                                          identifier=f'{random.getrandbits(self.nodeIdentifierBits)}')
+                                                          identifier='MAIN')
+        '''
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
             return self.bot.wavelink.get_player(obj.guild.id, cls=WavePlayer, context=obj)
@@ -754,6 +754,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _play_error(self, ctx, exception):
         if isinstance(exception, NoVC):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
+        '''
         if isinstance(exception, wavelink.ZeroConnectedNodes):
             await ctx.send("🕒 正在重新連接節點...")
             player = self.get_player(ctx)
@@ -768,6 +769,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             except:
                 await ctx.send(':sob: 哭啊！！！')
                 return
+        '''
 
     @commands.command(name='reconnect', aliases=['rec'])  # try to make a manual reconnect cmd
     async def _reconenct(self, ctx):
@@ -779,7 +781,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                                               rest_uri='http://suicalavalink.herokuapp.com:80',
                                                               password=config.getLavalinkPw(),
                                                               region='us-east',
-                                                              identifier=f'{random.getrandbits(self.nodeIdentifierBits)}')
+                                                              identifier='MAIN')
             await ctx.send(":white_check_mark: 完成！")
         except Exception as exc:
             await ctx.send(':sob: 哭啊！！！')
