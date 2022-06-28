@@ -7,6 +7,15 @@ import config
 import sqlite3  # this is for the db function
 from discord.ext.commands import CommandNotFound
 
+import requests
+
+# for periodic restart test
+import schedule
+import os
+import sys
+
+import musicPlayer_wavelink
+
 '''
 This cog is for confirming the bot was logged in, handling general command errors, and debug/keyword reply toggles.
 '''
@@ -59,7 +68,18 @@ class manager(commands.Cog):
 async def wakeup():
 	while(1):
 		a = 1 + 1  # yep, simple task to keep the bot up ;)
-		await asyncio.sleep(5)
+		requests.post("https://suicalavalink.herokuapp.com")
+		await asyncio.sleep(500)
+
+
+async def start_schedule_task():
+	while(1):
+		schedule.run_pending()
+		await asyncio.sleep(1)
+
+
+def restart():
+	os.execl(sys.executable, sys.executable, *sys.argv)
 
 
 def setup(bot):
@@ -67,3 +87,9 @@ def setup(bot):
 	print("Manager loaded.")
 	bot.loop.create_task(wakeup())
 	print("Wakeup periodic task initialized.")
+
+	schedule.every().day.at(config.getRestartTime()).do(restart)
+	bot.loop.create_task(start_schedule_task())
+
+	print("Schedule task initiated.")
+

@@ -86,3 +86,15 @@ def getLavalinkPw():
         password = os.environ["LAVAPW"]
         print("lavalink password loaded from os environment variable: {}".format(password))
         return password
+
+def getRestartTime():
+    try:
+        with open('config.json', 'r') as file:
+            configs = json.load(file)
+            restart_time = configs["restart_time"]
+            print("Restart time loaded from config.json: {}".format(restart_time))
+            return restart_time
+    except IOError as e:
+        restart_time = os.environ["RESTART"]
+        print("lavalink password loaded from os environment variable: {}".format(restart_time))
+        return restart_time
