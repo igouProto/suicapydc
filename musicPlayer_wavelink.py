@@ -180,7 +180,7 @@ class WavePlayer(wavelink.Player):
         super().__init__(*args, **kwargs)
         self.bounded_channel = None  # txt channel of last command, track error would be sent there.
         self.queue = Queue()
-        self.active_music_controller = 0
+        self.active_music_controller = None
         self.controller_registered_time = None
         self.music_controller_is_active = False  # indicates whether there's an active controller panel. For deciding whether to delete text-command messages.
         self.controller_mode = 1  # 1 = nowplay, 2 = queue
@@ -198,6 +198,12 @@ class WavePlayer(wavelink.Player):
         if channel is None:
             raise NoVC
 
+        await super().connect(channel.id)
+        return channel
+
+    async def manual_connect(self, channel=None):
+        if self.is_connected:
+            raise AlreadyConnected
         await super().connect(channel.id)
         return channel
 
@@ -255,28 +261,23 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
 
-        '''
-        self.node = await self.bot.wavelink.initiate_node(host='lava.link',
-                                                          port=80,
-                                                          rest_uri='http://lava.link:80',
-                                                          password='anything',
-                                                          region='hongkong',
-                                                          identifier=f"{random.getrandbits(self.nodeIdentifierBits)}")
-        '''
-        '''
-        self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
-                                                          port=2333,
-                                                          rest_uri='http://127.0.0.1:2333',
-                                                          password='igproto',
-                                                          region='us-east',
-                                                          identifier='MAIN')
-        '''
         self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
                                                           port=80,
                                                           rest_uri='http://suicalavalink.herokuapp.com:80',
                                                           password=config.getLavalinkPw(),
                                                           region='us-east',
                                                           identifier='MAIN')
+
+        await self.keepalive()
+        '''
+        self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
+                                                          port=2333,
+                                                          rest_uri='http://127.0.0.1:2333',
+                                                          password='igproto',
+                                                          region='us-east',
+                                                          identifier='LOCAL')
+        '''
+
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
             return self.bot.wavelink.get_player(obj.guild.id, cls=WavePlayer, context=obj)
@@ -436,44 +437,46 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     # panel updater (for updating the panel while text commands are used)
     async def nowplay_update(self, ctx: discord.ext.commands.Context):
         player = self.get_player(ctx)
-        nowplay_panel = await ctx.fetch_message(player.active_music_controller)
-        if nowplay_panel:
-            if player.controller_mode == 1:
-                await nowplay_panel.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
-            elif player.controller_mode == 2:
-                page = math.floor(int(player.queue.getPosition) / 10) + 1
-                await nowplay_panel.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
+        if player.active_music_controller:
+            nowplay_panel = await ctx.fetch_message(player.active_music_controller)
+            if nowplay_panel:
+                if player.controller_mode == 1:
+                    await nowplay_panel.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
+                elif player.controller_mode == 2:
+                    page = math.floor(int(player.queue.getPosition) / 10) + 1
+                    await nowplay_panel.edit(embed=self.queue_embed(guild=ctx.guild, page=page, player=player))
 
     # auto panel updater - updates itself when track starts (and it's not washed too far away)
     @wavelink.WavelinkMixin.listener('on_track_start')
     async def auto_panel_updater(self, node, payload):
         player = payload.player
         bounded_channel = player.bounded_channel
-        messages = await player.bounded_channel.history(limit=15, after=player.controller_registered_time).flatten()
-        if player.controller_registered_time:
-            messages_length = 0
-            messages_with_embed_or_attatch = 0
-            for item in messages:
-                messages_length += len(item.content)
-                if item.embeds or item.attachments:
-                    messages_with_embed_or_attatch += 1
-            if len(messages) < 10 and messages_length < 300 and messages_with_embed_or_attatch < 2:
-                try:
-                    nowplay_panel = await bounded_channel.fetch_message(player.active_music_controller)
-                    new_embed = None
-                    if nowplay_panel:
-                        if player.controller_mode == 1:
-                            new_embed = self.nowplay_embed(guild=nowplay_panel.guild, player=player)
-                        elif player.controller_mode == 2:
-                            if not player.queue_is_using_buttons:
-                                page = math.floor(int(player.queue.getPosition) / 10) + 1
-                                new_embed = self.queue_embed(guild=nowplay_panel.guild, page=page, player=player)
-                        await nowplay_panel.edit(embed=new_embed)
-                        player.nowplay_is_visible = True
-                except:
-                    pass
-            else:
-                player.nowplay_is_visible = False
+        if bounded_channel:
+            messages = await player.bounded_channel.history(limit=15, after=player.controller_registered_time).flatten()
+            if player.controller_registered_time:
+                messages_length = 0
+                messages_with_embed_or_attatch = 0
+                for item in messages:
+                    messages_length += len(item.content)
+                    if item.embeds or item.attachments:
+                        messages_with_embed_or_attatch += 1
+                if len(messages) < 10 and messages_length < 300 and messages_with_embed_or_attatch < 2:
+                    try:
+                        nowplay_panel = await bounded_channel.fetch_message(player.active_music_controller)
+                        new_embed = None
+                        if nowplay_panel:
+                            if player.controller_mode == 1:
+                                new_embed = self.nowplay_embed(guild=nowplay_panel.guild, player=player)
+                            elif player.controller_mode == 2:
+                                if not player.queue_is_using_buttons:
+                                    page = math.floor(int(player.queue.getPosition) / 10) + 1
+                                    new_embed = self.queue_embed(guild=nowplay_panel.guild, page=page, player=player)
+                            await nowplay_panel.edit(embed=new_embed)
+                            player.nowplay_is_visible = True
+                    except:
+                        pass
+                else:
+                    player.nowplay_is_visible = False
 
     # interactive buttons (via giving reactions)
     async def nowplay_buttons(self, nowplay, player: WavePlayer, ctx: discord.ext.commands.Context):
@@ -628,9 +631,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         await queue_display.edit(embed=self.nowplay_embed(guild=ctx.guild, player=player))
         await queue_display.clear_reactions()
 
-    @wavelink.WavelinkMixin.listener()
-    async def on_node_ready(self, node):
-        print(f"Lavalink is ready! Node identifier: {node.identifier}")
+    @wavelink.WavelinkMixin.listener('on_node_ready')
+    async def node_ready(self, node):
+        print(f"[Music] Lavalink is ready! Node identifier: {node.identifier}")
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
@@ -729,8 +732,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             query = query.strip('>')
             query = query.strip('<')
 
-        player.last_query = query
-
         #  get the tracks and add to the player queue
         tracks = await self.bot.wavelink.get_tracks(query)
         if not tracks:
@@ -754,22 +755,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def _play_error(self, ctx, exception):
         if isinstance(exception, NoVC):
             await ctx.send(":question: 窩不知道你在哪裡QQ")
-        '''
-        if isinstance(exception, wavelink.ZeroConnectedNodes):
-            await ctx.send("🕒 正在重新連接節點...")
-            player = self.get_player(ctx)
-            holded_query = player.last_query
-            try:
-                self.node = await self.bot.wavelink.initiate_node(host='lava.link',
-                                                                  port=80,
-                                                                  rest_uri='http://lava.link:80',
-                                                                  password='anything',
-                                                                  region='singapore', identifier=f"{random.getrandbits(8)}")
-                await ctx.invoke(self.bot.get_command('play'), f"{holded_query}")
-            except:
-                await ctx.send(':sob: 哭啊！！！')
-                return
-        '''
 
     @commands.command(name='reconnect', aliases=['rec'])  # try to make a manual reconnect cmd
     async def _reconenct(self, ctx):
@@ -1378,6 +1363,15 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         while True:
             await self.nowplay_update(ctx=ctx)
             await asyncio.sleep(30)
+
+    # reconnect to keep-alive channel after bot restarting
+    async def keepalive(self=None):
+        player = self.get_player(self.bot.get_guild(990322976119468052))
+        await player.manual_connect(self.bot.get_channel(990322976572448780))
+        tracks = await self.bot.wavelink.get_tracks("https://www.youtube.com/watch?v=25BkVBgFD9Y")
+        await player.addTrack(ctx=None, tracks=tracks)
+        player.queue.repeat_flag = True
+        print("Connected to keepalive channel.")
 
 
 def setup(bot):
