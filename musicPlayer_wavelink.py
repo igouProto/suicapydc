@@ -261,6 +261,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
 
+        '''
         self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
                                                           port=80,
                                                           rest_uri='http://suicalavalink.herokuapp.com:80',
@@ -276,7 +277,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                                           password='igproto',
                                                           region='us-east',
                                                           identifier='LOCAL')
-        '''
+        await self.keepalive()
 
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
@@ -634,6 +635,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @wavelink.WavelinkMixin.listener('on_node_ready')
     async def node_ready(self, node):
         print(f"[Music] Lavalink is ready! Node identifier: {node.identifier}")
+        await self.keepalive()
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
@@ -663,6 +665,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.command(name='join', aliases=['summon'])
     async def _summon(self, ctx, *, channel: t.Optional[discord.VoiceChannel]):
         player = self.get_player(ctx)
+        player.bounded_channel = ctx.channel
         channel = await player.connect(ctx, channel)
         await ctx.send(f":white_check_mark: 已加入語音頻道**{channel.name}**。")
 
@@ -711,6 +714,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if player.queue.getLength > 1:
                 await ctx.send(":boom: 已清除播放清單。")
             await ctx.send(":arrow_left: 已解除連接。")
+
+        player.bounded_channel = None
 
     @commands.command(name='play', aliases=['p'])
     async def _play(self, ctx: discord.ext.commands.Context, *, query: str, ):
@@ -1337,8 +1342,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(":x: 匯入失敗。")
 
     # auto disconnect when everyone is gone from the VC
-    @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
+    @commands.Cog.listener('on_voice_state_update')
+    async def auto_disconnect(self, member, before, after):
         if before.channel and before.channel.guild.id != 990322976119468052:  # heroku keeps on shutting down my connection so I need to make a channel for suica to loop songs forever as a workaround.
             if (self.bot.user in before.channel.members) and len(before.channel.members) <= 1:
                 player = self.bot.wavelink.get_player(before.channel.guild.id)
@@ -1349,14 +1354,23 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     return
 
     # try to do a quick pause and resume if the VC's region changed
-    @commands.Cog.listener()
-    async def on_guild_channel_update(self, before, after):
+    @commands.Cog.listener('on_guild_channel_update')
+    async def continue_after_channel_change(self, before, after):
         if isinstance(before, discord.VoiceChannel):
             if self.bot.user in before.members:
                 player = self.bot.wavelink.get_player(before.guild.id)
                 await player.set_pause(True)
                 await asyncio.sleep(1)
                 await player.set_pause(False)
+    '''
+    @commands.Cog.listener('on_voice_state_update')
+    async def greet_user(self, member, before, after):
+        if after.channel:
+            print(f'After: {after.channel.guild}, {after.channel.members}')
+            if self.bot.user in after.channel.members:
+                channel = self.bot.get_channel(803995832772853820)  # hardcode for proof of concept, full ver need to have guild profiles.
+                await channel.send(f'{after.channel.members[-1].mention}\nhttps://cdn.discordapp.com/attachments/580068249522143233/992106797508857886/wLB6u5O.jpg')
+    '''
 
     # experimental live panel updater (updates every 30 seconds)
     async def timer(self, ctx):
@@ -1366,12 +1380,20 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     # reconnect to keep-alive channel after bot restarting
     async def keepalive(self=None):
+        print('[Music] Running Keepalive')
         player = self.get_player(self.bot.get_guild(990322976119468052))
-        await player.manual_connect(self.bot.get_channel(990322976572448780))
+        try:
+            await player.manual_connect(self.bot.get_channel(990322976572448780))
+        except AlreadyConnected:
+            print('[Music] Already connected to keepalive channel. Reconnecting.')
+            await player.teardown()
+            player = self.get_player(self.bot.get_guild(990322976119468052))
+            await player.manual_connect(self.bot.get_channel(990322976572448780))
+
         tracks = await self.bot.wavelink.get_tracks("https://www.youtube.com/watch?v=25BkVBgFD9Y")
         await player.addTrack(ctx=None, tracks=tracks)
         player.queue.repeat_flag = True
-        print("Connected to keepalive channel.")
+        print("[Music] Connected to keepalive channel.")
 
 
 def setup(bot):
