@@ -261,7 +261,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
 
-        '''
         self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
                                                           port=80,
                                                           rest_uri='http://suicalavalink.herokuapp.com:80',
@@ -278,6 +277,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                                           region='us-east',
                                                           identifier='LOCAL')
         await self.keepalive()
+        '''
 
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
