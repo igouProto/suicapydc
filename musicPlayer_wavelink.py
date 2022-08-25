@@ -260,7 +260,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         # Initiate our nodes. For this example we will use one server.
         # Region should be a discord.py guild.region e.g sydney or us_central (Though this is not technically required)
-
+        '''
         self.node = await self.bot.wavelink.initiate_node(host='suicalavalink.herokuapp.com',
                                                           port=80,
                                                           rest_uri='http://suicalavalink.herokuapp.com:80',
@@ -270,14 +270,23 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         await self.keepalive()
         '''
+
         self.node = await self.bot.wavelink.initiate_node(host='127.0.0.1',
                                                           port=2333,
                                                           rest_uri='http://127.0.0.1:2333',
                                                           password='igproto',
                                                           region='us-east',
                                                           identifier='LOCAL')
+        '''
+        self.node = await self.bot.wavelink.initiate_node(host='lava.link',
+                                                          port=80,
+                                                          rest_uri='http://lava.link:80',
+                                                          password='hewwoworld',
+                                                          region='us-east',
+                                                          identifier='LOCAL')
         await self.keepalive()
         '''
+
 
     def get_player(self, obj) -> WavePlayer:
         if isinstance(obj, commands.Context):
@@ -635,7 +644,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @wavelink.WavelinkMixin.listener('on_node_ready')
     async def node_ready(self, node):
         print(f"[Music] Lavalink is ready! Node identifier: {node.identifier}")
-        await self.keepalive()
+        # await self.keepalive()
 
     @wavelink.WavelinkMixin.listener('on_track_stuck')
     @wavelink.WavelinkMixin.listener('on_track_end')
