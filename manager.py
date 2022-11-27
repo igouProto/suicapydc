@@ -85,11 +85,11 @@ def restart():
 def setup(bot):
 	bot.add_cog(manager(bot))
 	print("Manager loaded.")
-	bot.loop.create_task(wakeup())
-	print("Wakeup periodic task initialized.")
+	#bot.loop.create_task(wakeup())
+	#print("Wakeup periodic task initialized.")
 
-	schedule.every().day.at(config.getRestartTime()).do(restart)
-	bot.loop.create_task(start_schedule_task())
+	#schedule.every().day.at(config.getRestartTime()).do(restart)
+	#bot.loop.create_task(start_schedule_task())
 
-	print("Schedule task initiated.")
+	#print("Schedule task initiated.")
 
