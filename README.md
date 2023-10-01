@@ -8,5 +8,16 @@ A discord bot packed with music playback and some other features.
 </p>
 
 --More documentation coming soon...?--
+
+Quick setup to test on venv
+
+```
+cd /path/to/repo
+python3 -m venv .venv
+source .venv/bin/activate
+(.venv) $ python3 -m pip install -r requirements.txt
+(.venv) $ python3 Main.py
+```
+
 <br>
 igouP.
