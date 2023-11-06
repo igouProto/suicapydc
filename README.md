@@ -1,4 +1,8 @@
 # suicapydc
+
+(Nov 6, 2023): I rewrote SUICA again so I'm archiving this repo. Visit https://github.com/igouProto/suicapydcV3 to meet the new Suica!
+
+
 A discord bot packed with music playback and some other features.
 <br>Written in Python based on discord.py rewrite. Specifically coded for hosting on Heroku.
 <br>Named after Ibuki Suika from the Touhou Project series.
